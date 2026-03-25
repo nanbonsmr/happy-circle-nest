@@ -668,6 +668,9 @@ const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDele
               <Play className="h-3.5 w-3.5" /> Start
             </Button>
           )}
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onSendResults(exam.id)} disabled={sendingResultsExamId === exam.id}>
+            {sendingResultsExamId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Send Results
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => onEdit(exam)}>
             <Pencil className="h-4 w-4" />
           </Button>
