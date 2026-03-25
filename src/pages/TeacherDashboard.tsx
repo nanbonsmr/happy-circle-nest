@@ -57,6 +57,15 @@ const TeacherDashboard = () => {
   const [profileEmail, setProfileEmail] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Edit/Delete state
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editDuration, setEditDuration] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
