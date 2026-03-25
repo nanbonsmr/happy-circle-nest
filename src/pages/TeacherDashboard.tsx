@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   BookOpen, Plus, FileText, Users, BarChart3, LogOut,
-  LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check,
+  LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +65,7 @@ const TeacherDashboard = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [sendingResultsExamId, setSendingResultsExamId] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -264,6 +265,35 @@ const TeacherDashboard = () => {
     setDeletingExamId(null);
   };
 
+  const handleSendResults = async (examId: string) => {
+    setSendingResultsExamId(examId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
+
+      const { data, error } = await supabase.functions.invoke("send-exam-results", {
+        body: {
+          examId,
+          senderEmail: profileEmail || session.user.email,
+          senderName: userName,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error && data.sent === undefined) throw new Error(data.error);
+
+      toast({
+        title: data.sent > 0 ? "Results sent!" : "No results to send",
+        description: data.sent > 0
+          ? `Successfully sent results to ${data.sent}/${data.total} students.${data.errors?.length ? ` ${data.errors.length} failed.` : ""}`
+          : "No submitted sessions found for this exam.",
+      });
+    } catch (err: any) {
+      toast({ title: "Error sending results", description: err.message, variant: "destructive" });
+    }
+    setSendingResultsExamId(null);
+  };
+
   const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
 
@@ -379,7 +409,7 @@ const TeacherDashboard = () => {
                   ) : exams.length === 0 ? (
                     <EmptyExams />
                   ) : (
-                    <ExamsList exams={exams.slice(0, 5)} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} toast={toast} />
+                    <ExamsList exams={exams.slice(0, 5)} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} onSendResults={handleSendResults} sendingResultsExamId={sendingResultsExamId} toast={toast} />
                   )}
                 </CardContent>
               </Card>
@@ -400,7 +430,7 @@ const TeacherDashboard = () => {
                 ) : exams.length === 0 ? (
                   <EmptyExams />
                 ) : (
-                  <ExamsList exams={exams} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} toast={toast} />
+                  <ExamsList exams={exams} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} onSendResults={handleSendResults} sendingResultsExamId={sendingResultsExamId} toast={toast} />
                 )}
               </CardContent>
             </Card>
@@ -609,10 +639,12 @@ interface ExamsListProps {
   onStart: (id: string) => void;
   onEdit: (exam: Exam) => void;
   onDelete: (id: string) => void;
+  onSendResults: (id: string) => void;
+  sendingResultsExamId: string | null;
   toast: any;
 }
 
-const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDelete, toast }: ExamsListProps) => (
+const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDelete, onSendResults, sendingResultsExamId, toast }: ExamsListProps) => (
   <div className="space-y-3">
     {exams.map((exam) => (
       <div key={exam.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
@@ -636,6 +668,9 @@ const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDele
               <Play className="h-3.5 w-3.5" /> Start
             </Button>
           )}
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onSendResults(exam.id)} disabled={sendingResultsExamId === exam.id}>
+            {sendingResultsExamId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Send Results
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => onEdit(exam)}>
             <Pencil className="h-4 w-4" />
           </Button>
