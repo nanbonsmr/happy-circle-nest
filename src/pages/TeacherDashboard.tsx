@@ -639,10 +639,12 @@ interface ExamsListProps {
   onStart: (id: string) => void;
   onEdit: (exam: Exam) => void;
   onDelete: (id: string) => void;
+  onSendResults: (id: string) => void;
+  sendingResultsExamId: string | null;
   toast: any;
 }
 
-const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDelete, toast }: ExamsListProps) => (
+const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDelete, onSendResults, sendingResultsExamId, toast }: ExamsListProps) => (
   <div className="space-y-3">
     {exams.map((exam) => (
       <div key={exam.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
