@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   BookOpen, Plus, FileText, Users, BarChart3, LogOut,
-  LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check,
+  LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
