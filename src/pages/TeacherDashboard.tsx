@@ -217,6 +217,53 @@ const TeacherDashboard = () => {
     setSavingProfile(false);
   };
 
+  const openEditExam = (exam: Exam) => {
+    setEditingExam(exam);
+    setEditTitle(exam.title);
+    setEditSubject(exam.subject);
+    setEditDuration(String(exam.duration_minutes));
+  };
+
+  const handleEditExam = async () => {
+    if (!editingExam) return;
+    setEditSaving(true);
+    const { error } = await supabase
+      .from("exams")
+      .update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 })
+      .eq("id", editingExam.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setExams((prev) => prev.map((e) => e.id === editingExam.id ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 } : e));
+      toast({ title: "Exam updated!" });
+      setEditingExam(null);
+    }
+    setEditSaving(false);
+  };
+
+  const handleDeleteExam = async () => {
+    if (!deletingExamId) return;
+    setDeleteLoading(true);
+    try {
+      // Delete related data first (answers → sessions → questions → exam)
+      const { data: sessions } = await supabase.from("exam_sessions").select("id").eq("exam_id", deletingExamId);
+      if (sessions && sessions.length > 0) {
+        const sessionIds = sessions.map((s) => s.id);
+        await supabase.from("student_answers").delete().in("session_id", sessionIds);
+        await supabase.from("exam_sessions").delete().eq("exam_id", deletingExamId);
+      }
+      await supabase.from("questions").delete().eq("exam_id", deletingExamId);
+      const { error } = await supabase.from("exams").delete().eq("id", deletingExamId);
+      if (error) throw error;
+      setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
+      toast({ title: "Exam deleted!" });
+    } catch (err: any) {
+      toast({ title: "Error deleting exam", description: err.message, variant: "destructive" });
+    }
+    setDeleteLoading(false);
+    setDeletingExamId(null);
+  };
+
   const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
 
