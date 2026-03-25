@@ -265,6 +265,35 @@ const TeacherDashboard = () => {
     setDeletingExamId(null);
   };
 
+  const handleSendResults = async (examId: string) => {
+    setSendingResultsExamId(examId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
+
+      const { data, error } = await supabase.functions.invoke("send-exam-results", {
+        body: {
+          examId,
+          senderEmail: profileEmail || session.user.email,
+          senderName: userName,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error && data.sent === undefined) throw new Error(data.error);
+
+      toast({
+        title: data.sent > 0 ? "Results sent!" : "No results to send",
+        description: data.sent > 0
+          ? `Successfully sent results to ${data.sent}/${data.total} students.${data.errors?.length ? ` ${data.errors.length} failed.` : ""}`
+          : "No submitted sessions found for this exam.",
+      });
+    } catch (err: any) {
+      toast({ title: "Error sending results", description: err.message, variant: "destructive" });
+    }
+    setSendingResultsExamId(null);
+  };
+
   const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
 
