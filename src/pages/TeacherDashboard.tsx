@@ -409,7 +409,7 @@ const TeacherDashboard = () => {
                   ) : exams.length === 0 ? (
                     <EmptyExams />
                   ) : (
-                    <ExamsList exams={exams.slice(0, 5)} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} toast={toast} />
+                    <ExamsList exams={exams.slice(0, 5)} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} onSendResults={handleSendResults} sendingResultsExamId={sendingResultsExamId} toast={toast} />
                   )}
                 </CardContent>
               </Card>
