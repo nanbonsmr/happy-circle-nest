@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Users, ShieldCheck, ArrowRight, Sparkles, Zap, BarChart3 } from "lucide-react";
+import { Users, ShieldCheck, ArrowRight, Sparkles, Zap, BarChart3, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo.png";
 
 const features = [
   {
