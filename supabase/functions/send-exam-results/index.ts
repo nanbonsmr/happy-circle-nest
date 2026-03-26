@@ -103,6 +103,8 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     const errors: string[] = [];
 
+    console.log(`Processing ${sessions.length} sessions for exam ${examId}`);
+
     for (const session of sessions) {
       const sessionAnswers = (answers || []).filter((a: any) => a.session_id === session.id);
       const correct = sessionAnswers.filter((a: any) => a.is_correct === true).length;
