@@ -677,7 +677,7 @@ const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDele
           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onDelete(exam.id)}>
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }}>
+          <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.netlify.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }}>
             <Eye className="h-4 w-4" />
           </Button>
         </div>
