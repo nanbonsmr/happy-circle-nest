@@ -61,10 +61,8 @@ const AdminLogin = () => {
           className="max-w-md text-primary-foreground"
         >
           <div className="mb-8 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <BookOpen className="h-5 w-5" />
-            </div>
-            <span className="text-2xl font-bold">Nejo Exam Prep</span>
+            <img src={logo} alt="Nejo Ifa Boru Logo" className="h-12 w-12 rounded-full object-cover border-2 border-white/30" />
+            <span className="text-2xl font-bold">NejoExamPrep</span>
           </div>
           <h2 className="text-3xl font-bold mb-4">Welcome back</h2>
           <p className="text-lg opacity-80">
