@@ -165,8 +165,8 @@ Deno.serve(async (req) => {
       try {
         const emailPayload = {
           sender: {
-            name: senderName || "Nejo Exam Prep",
-            email: senderEmail || "noreply@nejoexamprep.com",
+            name: "Nejo Exam Prep",
+            email: "nanbonai5@gmail.com",
           },
           to: [{ email: session.student_email, name: session.student_name }],
           subject: `Your Exam Results: ${exam.title}`,
