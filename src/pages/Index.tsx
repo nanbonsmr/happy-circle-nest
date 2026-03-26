@@ -44,10 +44,8 @@ const Index = () => {
       <nav className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <BookOpen className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold">Nejo Exam Prep</span>
+            <img src={logo} alt="Nejo Ifa Boru Logo" className="h-10 w-10 rounded-full object-cover" />
+            <span className="text-lg font-bold">NejoExamPrep</span>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
