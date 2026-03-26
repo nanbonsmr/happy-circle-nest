@@ -117,7 +117,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border/50 py-8">
         <div className="container text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Nejo Exam Prep. Built for modern education.
+          © {new Date().getFullYear()} NejoExamPrep — Nejo Ifa Boru Special Boarding Secondary School.
         </div>
       </footer>
     </div>
