@@ -68,7 +68,7 @@ const Index = () => {
               </Button>
             </form>
             <Button asChild className="bg-white text-[hsl(210,29%,24%)] hover:bg-white/90 font-semibold">
-              <Link to="/login">Sign Up</Link>
+              <Link to="/login">Sign In</Link>
             </Button>
             <Button variant="ghost" asChild className="text-white hover:bg-white/10">
               <Link to="/login">Teacher Sign In</Link>
