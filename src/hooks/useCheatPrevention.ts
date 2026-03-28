@@ -42,6 +42,8 @@ export function useCheatPrevention({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSizeRef = useRef({ w: window.innerWidth, h: window.innerHeight });
+  // Tracks recent mousedown inside the exam — used to ignore browser-caused fullscreen exits
+  const recentClickRef = useRef(false);
 
   const logEvent = useCallback(
     async (eventType: CheatEventType, detail?: string) => {
@@ -84,19 +86,38 @@ export function useCheatPrevention({
       if (document.hidden) logEvent("tab_switch");
     };
 
-    // ── Keys: Escape & F11 count as fullscreen_exit violation ────────────────
-    // We do NOT use fullscreenchange — it fires on every click in Chrome.
-    // Instead we only detect deliberate key presses.
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Can't preventDefault Escape for fullscreen, but we log it
-        logEvent("fullscreen_exit", "Escape key pressed");
-        return;
-      }
+    // ── Track mouse clicks to distinguish browser-caused vs deliberate exits ──
+    const onMouseDown = () => {
+      recentClickRef.current = true;
+      setTimeout(() => { recentClickRef.current = false; }, 800);
+    };
 
+    // ── Keys: Escape & F11 count as fullscreen_exit violation ────────────────
+    // Also listen to fullscreenchange to re-enter if student exits
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        if (recentClickRef.current) {
+          // Browser exited fullscreen due to a click (focus change) — re-enter silently
+          setTimeout(() => {
+            document.documentElement
+              .requestFullscreen({ navigationUI: "hide" })
+              .catch(() => {});
+          }, 100);
+        } else {
+          // Deliberate exit (Escape / F11 / other) — log as violation then re-enter
+          logEvent("fullscreen_exit", "Exited fullscreen");
+          setTimeout(() => {
+            document.documentElement
+              .requestFullscreen({ navigationUI: "hide" })
+              .catch(() => {});
+          }, 300);
+        }
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") {
         e.preventDefault();
-        logEvent("fullscreen_exit", "F11 pressed");
         return;
       }
 
@@ -163,6 +184,8 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("mousedown", onMouseDown, true);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu, true);
@@ -174,6 +197,8 @@ export function useCheatPrevention({
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("mousedown", onMouseDown, true);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu, true);
