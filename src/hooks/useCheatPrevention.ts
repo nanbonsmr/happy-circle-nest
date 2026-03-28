@@ -79,6 +79,31 @@ export function useCheatPrevention({
       readyRef.current = true;
     }, GRACE_PERIOD_MS);
 
+    // Track last click time to distinguish click-caused vs deliberate fullscreen exit
+    let lastClickTime = 0;
+    const onMouseDown = () => { lastClickTime = Date.now(); };
+
+    // ── Fullscreen exit ──────────────────────────────────────────────────────
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        const msSinceClick = Date.now() - lastClickTime;
+        if (msSinceClick < 700) {
+          // Click-caused exit (answer selection etc.) — re-enter silently, no warning
+          document.documentElement
+            .requestFullscreen({ navigationUI: "hide" })
+            .catch(() => {});
+        } else {
+          // Deliberate exit (Escape) — count as violation then re-enter
+          logEvent("fullscreen_exit", "Exited fullscreen");
+          setTimeout(() => {
+            document.documentElement
+              .requestFullscreen({ navigationUI: "hide" })
+              .catch(() => {});
+          }, 200);
+        }
+      }
+    };
+
     // ── Tab switch ───────────────────────────────────────────────────────────
     const onVisibilityChange = () => {
       if (document.hidden) logEvent("tab_switch");
@@ -153,6 +178,8 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("mousedown", onMouseDown, true);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu, true);
@@ -164,6 +191,8 @@ export function useCheatPrevention({
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("mousedown", onMouseDown, true);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu, true);
