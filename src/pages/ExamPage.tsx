@@ -353,11 +353,15 @@ const ExamPage = () => {
               type="button"
               className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base"
               onClick={() => {
-                // Make documentElement focusable so we can keep focus there
+                // Enter fullscreen briefly for the visual transition, then
+                // immediately exit — CSS overlay takes over with zero flicker
                 document.documentElement.setAttribute("tabindex", "-1");
-                document.documentElement.focus();
                 document.documentElement
                   .requestFullscreen({ navigationUI: "hide" })
+                  .then(() => {
+                    // Exit right away — CSS overlay is already covering everything
+                    return document.exitFullscreen();
+                  })
                   .catch(() => {})
                   .finally(() => {
                     setFullscreenReady(true);
@@ -457,23 +461,18 @@ const ExamPage = () => {
                   </div>
                   <h2 className="text-xl font-semibold mb-6 mt-4 text-[#0f172a]">{q.question_text}</h2>
 
-                  {/* Answer options — pure div, no focusable elements, no fullscreen exit */}
+                  {/* Answer options — plain non-focusable divs, zero fullscreen interference */}
                   <div className="space-y-3">
-                    {options.map((opt, i) => {
+                    {options.map((opt) => {
                       const selected = answers[q.id] === opt.key;
                       return (
-                        <motion.div
+                        <div
                           key={opt.key}
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
                           onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
                           onTouchStart={(e: { preventDefault: () => void }) => e.preventDefault()}
                           onClick={() => saveAnswer(q.id, opt.key)}
-                          role="radio"
-                          aria-checked={selected}
                           tabIndex={-1}
-                          className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all ${
+                          className={`flex items-center gap-3 rounded-xl border p-4 transition-all exam-option ${
                             selected
                               ? "border-[#1e3a5f] bg-[#1e3a5f]/5 shadow-sm"
                               : "border-slate-200 hover:border-[#1e3a5f]/30 hover:bg-slate-50"
@@ -486,7 +485,7 @@ const ExamPage = () => {
                           </div>
                           <span className="font-semibold text-sm text-[#1e3a5f]">{opt.key}.</span>
                           <span className="text-[#0f172a]">{opt.text}</span>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
