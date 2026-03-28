@@ -42,8 +42,6 @@ export function useCheatPrevention({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSizeRef = useRef({ w: window.innerWidth, h: window.innerHeight });
-  // Tracks recent mousedown inside the exam — used to ignore browser-caused fullscreen exits
-  const recentClickRef = useRef(false);
 
   const logEvent = useCallback(
     async (eventType: CheatEventType, detail?: string) => {
@@ -86,32 +84,31 @@ export function useCheatPrevention({
       if (document.hidden) logEvent("tab_switch");
     };
 
-    // ── Track mouse clicks to distinguish browser-caused vs deliberate exits ──
-    const onMouseDown = () => {
-      recentClickRef.current = true;
-      setTimeout(() => { recentClickRef.current = false; }, 800);
+    // ── Prevent focus shift on click — keeps Chrome in fullscreen ────────────
+    // Chrome exits fullscreen when focus moves to an element outside the
+    // fullscreen element. By immediately re-focusing documentElement on every
+    // mousedown (capture phase), we prevent that focus shift entirely.
+    const onMouseDown = (e: MouseEvent) => {
+      // Keep focus on the fullscreen root so Chrome never exits fullscreen
+      if (document.fullscreenElement) {
+        const target = e.target as HTMLElement;
+        // Only intercept if target is not an input that needs real focus
+        if (target && target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+          document.documentElement.focus();
+        }
+      }
     };
 
-    // ── Keys: Escape & F11 count as fullscreen_exit violation ────────────────
-    // Also listen to fullscreenchange to re-enter if student exits
+    // ── Fullscreen exit — only fires for deliberate exits (Escape) ───────────
+    // With the mousedown focus guard above, clicks should never cause this.
     const onFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        if (recentClickRef.current) {
-          // Browser exited fullscreen due to a click (focus change) — re-enter silently
-          setTimeout(() => {
-            document.documentElement
-              .requestFullscreen({ navigationUI: "hide" })
-              .catch(() => {});
-          }, 100);
-        } else {
-          // Deliberate exit (Escape / F11 / other) — log as violation then re-enter
-          logEvent("fullscreen_exit", "Exited fullscreen");
-          setTimeout(() => {
-            document.documentElement
-              .requestFullscreen({ navigationUI: "hide" })
-              .catch(() => {});
-          }, 300);
-        }
+        logEvent("fullscreen_exit", "Exited fullscreen");
+        setTimeout(() => {
+          document.documentElement
+            .requestFullscreen({ navigationUI: "hide" })
+            .catch(() => {});
+        }, 300);
       }
     };
 
