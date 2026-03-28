@@ -95,20 +95,32 @@ const CreateExam = () => {
         setAccessCode(code);
       }
 
-      const { data: exam, error: examError } = await supabase
-        .from("exams")
-        .insert({
-          teacher_id: user.id,
-          title: title.trim(),
-          subject: subject.trim(),
-          duration_minutes: parseInt(duration) || 30,
-          access_code: code,
-          status: "published",
-          max_participants: maxParticipants ? parseInt(maxParticipants) : null,
-          security_level: securityLevel,
-        })
-        .select()
-        .single();
+      // Try inserting with security_level; fall back without it if column doesn't exist yet
+      let exam: any = null;
+      let examError: any = null;
+
+      const insertPayload: Record<string, any> = {
+        teacher_id: user.id,
+        title: title.trim(),
+        subject: subject.trim(),
+        duration_minutes: parseInt(duration) || 30,
+        access_code: code,
+        status: "published",
+        max_participants: maxParticipants ? parseInt(maxParticipants) : null,
+        security_level: securityLevel,
+      };
+
+      const result = await supabase.from("exams").insert(insertPayload as any).select().single();
+      exam = result.data;
+      examError = result.error;
+
+      // If security_level column doesn't exist yet, retry without it
+      if (examError && examError.message?.includes("security_level")) {
+        const { security_level: _sl, ...payloadWithout } = insertPayload;
+        const retry = await supabase.from("exams").insert(payloadWithout as any).select().single();
+        exam = retry.data;
+        examError = retry.error;
+      }
 
       if (examError) throw examError;
 
