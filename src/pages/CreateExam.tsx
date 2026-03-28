@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  BookOpen, ArrowLeft, ArrowRight, Check, Plus, Trash2, Copy, ExternalLink,
+  BookOpen, ArrowLeft, ArrowRight, Check, Plus, Trash2, Copy, ExternalLink, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ interface Question {
   text: string;
   options: string[];
   correctAnswer: string;
-  marks: number;
 }
 
 const steps = ["Exam Details", "Add Questions", "Review & Publish"];
@@ -32,11 +31,12 @@ const CreateExam = () => {
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [duration, setDuration] = useState("30");
+  const [maxParticipants, setMaxParticipants] = useState("");
   const [accessCode, setAccessCode] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
 
   // Step 2
   const [questions, setQuestions] = useState<Question[]>([
-    { id: "1", text: "", options: ["", "", "", ""], correctAnswer: "", marks: 5 },
+    { id: "1", text: "", options: ["", "", "", ""], correctAnswer: "" },
   ]);
 
   // Check auth
@@ -49,7 +49,7 @@ const CreateExam = () => {
   const addQuestion = () => {
     setQuestions((prev) => [
       ...prev,
-      { id: String(Date.now()), text: "", options: ["", "", "", ""], correctAnswer: "", marks: 5 },
+      { id: String(Date.now()), text: "", options: ["", "", "", ""], correctAnswer: "" },
     ]);
   };
 
@@ -81,13 +81,11 @@ const CreateExam = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Validate
       if (!title.trim()) throw new Error("Exam title is required");
       if (questions.some((q) => !q.text.trim())) throw new Error("All questions must have text");
       if (questions.some((q) => !q.correctAnswer)) throw new Error("All questions must have a correct answer");
       if (questions.some((q) => q.options.some((o) => !o.trim()))) throw new Error("All options must be filled");
 
-      // Ensure unique access code
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
       if (existing) {
@@ -95,7 +93,6 @@ const CreateExam = () => {
         setAccessCode(code);
       }
 
-      // Create exam
       const { data: exam, error: examError } = await supabase
         .from("exams")
         .insert({
@@ -105,13 +102,14 @@ const CreateExam = () => {
           duration_minutes: parseInt(duration) || 30,
           access_code: code,
           status: "published",
+          max_participants: maxParticipants ? parseInt(maxParticipants) : null,
         })
         .select()
         .single();
 
       if (examError) throw examError;
 
-      // Create questions
+      // Each question = 1 mark (percentage based: score = correct/total * 100)
       const questionsToInsert = questions.map((q, i) => ({
         exam_id: exam.id,
         question_text: q.text.trim(),
@@ -120,7 +118,7 @@ const CreateExam = () => {
         option_c: q.options[2].trim(),
         option_d: q.options[3].trim(),
         correct_answer: q.correctAnswer,
-        marks: q.marks,
+        marks: 1,
         question_order: i,
       }));
 
@@ -136,7 +134,7 @@ const CreateExam = () => {
     }
   };
 
-  const examLink = `${window.location.origin}/exam/${accessCode}`;
+  const examLink = `https://nejoexamprep.netlify.app/exam/${accessCode}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,9 +192,27 @@ const CreateExam = () => {
                     <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Access Code</Label>
-                  <Input value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="font-mono" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" /> Max Students
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="Unlimited"
+                      value={maxParticipants}
+                      onChange={(e) => setMaxParticipants(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Leave empty for unlimited</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Access Code</Label>
+                    <Input value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="font-mono" />
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">📊 Scoring: Percentage-based</p>
+                  <p>Each question carries equal weight. Final score = (correct answers / total questions) × 100%</p>
                 </div>
               </CardContent>
             </Card>
@@ -227,22 +243,16 @@ const CreateExam = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Correct Answer</Label>
-                      <RadioGroup value={q.correctAnswer} onValueChange={(v) => updateQuestion(q.id, "correctAnswer", v)} className="flex gap-4">
-                        {["A", "B", "C", "D"].map((l) => (
-                          <div key={l} className="flex items-center gap-1.5">
-                            <RadioGroupItem value={l} id={`${q.id}-${l}`} />
-                            <Label htmlFor={`${q.id}-${l}`} className="text-sm">{l}</Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Marks</Label>
-                      <Input type="number" value={q.marks} onChange={(e) => updateQuestion(q.id, "marks", Number(e.target.value))} />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Correct Answer</Label>
+                    <RadioGroup value={q.correctAnswer} onValueChange={(v) => updateQuestion(q.id, "correctAnswer", v)} className="flex gap-4">
+                      {["A", "B", "C", "D"].map((l) => (
+                        <div key={l} className="flex items-center gap-1.5">
+                          <RadioGroupItem value={l} id={`${q.id}-${l}`} />
+                          <Label htmlFor={`${q.id}-${l}`} className="text-sm">{l}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
                   </div>
                 </CardContent>
               </Card>
@@ -267,8 +277,9 @@ const CreateExam = () => {
                   <div><span className="text-muted-foreground">Subject:</span> <strong>{subject || "—"}</strong></div>
                   <div><span className="text-muted-foreground">Duration:</span> <strong>{duration} min</strong></div>
                   <div><span className="text-muted-foreground">Questions:</span> <strong>{questions.length}</strong></div>
-                  <div><span className="text-muted-foreground">Total Marks:</span> <strong>{questions.reduce((s, q) => s + q.marks, 0)}</strong></div>
-                  <div><span className="text-muted-foreground">Access Code:</span> <strong className="font-mono">{accessCode}</strong></div>
+                  <div><span className="text-muted-foreground">Max Students:</span> <strong>{maxParticipants || "Unlimited"}</strong></div>
+                  <div><span className="text-muted-foreground">Scoring:</span> <strong>Percentage (%)</strong></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Access Code:</span> <strong className="font-mono">{accessCode}</strong></div>
                 </div>
               </CardContent>
             </Card>
@@ -302,7 +313,7 @@ const CreateExam = () => {
                         </span>
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Marks: {q.marks} · Correct: {q.correctAnswer || "—"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Correct: {q.correctAnswer || "—"}</p>
                   </div>
                 ))}
               </CardContent>

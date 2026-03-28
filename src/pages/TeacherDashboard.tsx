@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   Plus, FileText, Users, BarChart3, LogOut,
   LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check, Mail,
+  Clock, TrendingUp, UserCheck, Activity,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
@@ -21,6 +23,13 @@ import type { Tables } from "@/integrations/supabase/types";
 type Exam = Tables<"exams">;
 
 type ActiveTab = "dashboard" | "exams" | "reports" | "settings";
+
+interface SessionStatusCounts {
+  total: number;
+  waiting: number;
+  in_progress: number;
+  submitted: number;
+}
 
 interface StudentReport {
   sessionId: string;
@@ -36,6 +45,7 @@ interface StudentReport {
   incorrect: number;
   unanswered: number;
   totalQuestions: number;
+  percentage: number | null;
 }
 
 const TeacherDashboard = () => {
@@ -44,21 +54,17 @@ const TeacherDashboard = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
+  const [sessionStatusCounts, setSessionStatusCounts] = useState<Record<string, SessionStatusCounts>>({});
   const [userName, setUserName] = useState("Teacher");
   const [userId, setUserId] = useState("");
 
-  // Reports state
   const [reports, setReports] = useState<StudentReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
-  // Settings state
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Edit/Delete state
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editSubject, setEditSubject] = useState("");
@@ -67,6 +73,25 @@ const TeacherDashboard = () => {
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sendingResultsExamId, setSendingResultsExamId] = useState<string | null>(null);
+
+  const loadSessionCounts = async (examList: Exam[]) => {
+    if (!examList.length) return;
+    const counts: Record<string, SessionStatusCounts> = {};
+    for (const exam of examList) {
+      const { data: sessions } = await supabase
+        .from("exam_sessions")
+        .select("status")
+        .eq("exam_id", exam.id);
+      const s = sessions || [];
+      counts[exam.id] = {
+        total: s.length,
+        waiting: s.filter((x) => x.status === "waiting").length,
+        in_progress: s.filter((x) => x.status === "in_progress").length,
+        submitted: s.filter((x) => x.status === "submitted").length,
+      };
+    }
+    setSessionStatusCounts(counts);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -95,24 +120,25 @@ const TeacherDashboard = () => {
         toast({ title: "Error loading exams", description: error.message, variant: "destructive" });
       } else {
         setExams(data || []);
-        if (data && data.length > 0) {
-          const counts: Record<string, number> = {};
-          for (const exam of data) {
-            const { count } = await supabase
-              .from("exam_sessions")
-              .select("*", { count: "exact", head: true })
-              .eq("exam_id", exam.id);
-            counts[exam.id] = count || 0;
-          }
-          setSessionCounts(counts);
-        }
+        await loadSessionCounts(data || []);
       }
       setLoading(false);
     };
     init();
   }, [navigate, toast]);
 
-  // Load reports when tab switches
+  // Realtime subscription for session changes
+  useEffect(() => {
+    if (exams.length === 0) return;
+    const channel = supabase
+      .channel("exam-sessions-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions" }, () => {
+        loadSessionCounts(exams);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [exams]);
+
   useEffect(() => {
     if (activeTab === "reports" && exams.length > 0 && reports.length === 0) {
       loadReports();
@@ -134,18 +160,9 @@ const TeacherDashboard = () => {
         return;
       }
 
-      // Get all questions for these exams
-      const { data: questions } = await supabase
-        .from("questions")
-        .select("*")
-        .in("exam_id", examIds);
-
-      // Get all answers for these sessions
+      const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);
-      const { data: answers } = await supabase
-        .from("student_answers")
-        .select("*")
-        .in("session_id", sessionIds);
+      const { data: answers } = await supabase.from("student_answers").select("*").in("session_id", sessionIds);
 
       const examMap = Object.fromEntries(exams.map((e) => [e.id, e]));
       const questionsPerExam: Record<string, number> = {};
@@ -161,6 +178,7 @@ const TeacherDashboard = () => {
         const answered = sessionAnswers.filter((a) => a.selected_answer).length;
         const unanswered = totalQ - answered;
         const exam = examMap[session.exam_id];
+        const percentage = totalQ > 0 ? Math.round((correct / totalQ) * 100) : null;
 
         return {
           sessionId: session.id,
@@ -176,6 +194,7 @@ const TeacherDashboard = () => {
           incorrect,
           unanswered,
           totalQuestions: totalQ,
+          percentage,
         };
       });
 
@@ -206,10 +225,7 @@ const TeacherDashboard = () => {
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: profileName })
-      .eq("id", userId);
+    const { error } = await supabase.from("profiles").update({ full_name: profileName }).eq("id", userId);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -247,7 +263,6 @@ const TeacherDashboard = () => {
     if (!deletingExamId) return;
     setDeleteLoading(true);
     try {
-      // Delete related data first (answers → sessions → questions → exam)
       const { data: sessions } = await supabase.from("exam_sessions").select("id").eq("exam_id", deletingExamId);
       if (sessions && sessions.length > 0) {
         const sessionIds = sessions.map((s) => s.id);
@@ -273,11 +288,7 @@ const TeacherDashboard = () => {
       if (!session) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
 
       const { data, error } = await supabase.functions.invoke("send-exam-results", {
-        body: {
-          examId,
-          senderEmail: profileEmail || session.user.email,
-          senderName: userName,
-        },
+        body: { examId, senderEmail: profileEmail || session.user.email, senderName: userName },
       });
 
       if (error) throw error;
@@ -295,13 +306,16 @@ const TeacherDashboard = () => {
     setSendingResultsExamId(null);
   };
 
-  const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b, 0);
+  const totalStudents = Object.values(sessionStatusCounts).reduce((a, b) => a + b.total, 0);
+  const activeStudents = Object.values(sessionStatusCounts).reduce((a, b) => a + b.waiting + b.in_progress, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
+  const submittedTotal = Object.values(sessionStatusCounts).reduce((a, b) => a + b.submitted, 0);
 
   const stats = [
-    { label: "Total Exams", value: String(exams.length), icon: FileText, color: "text-primary" },
-    { label: "Active Exams", value: String(activeExams), icon: BarChart3, color: "text-success" },
-    { label: "Total Students", value: String(totalStudents), icon: Users, color: "text-accent" },
+    { label: "Total Exams", value: String(exams.length), icon: FileText, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Active Exams", value: String(activeExams), icon: Activity, color: "text-success", bg: "bg-success/10" },
+    { label: "Total Students", value: String(totalStudents), icon: Users, color: "text-accent", bg: "bg-accent/10" },
+    { label: "Live Now", value: String(activeStudents), icon: UserCheck, color: "text-amber-500", bg: "bg-amber-500/10" },
   ];
 
   const statusColors: Record<string, string> = {
@@ -318,12 +332,18 @@ const TeacherDashboard = () => {
     { icon: Settings, label: "Settings", tab: "settings" },
   ];
 
-  const getScoreColor = (score: number | null, total: number | null) => {
-    if (score == null || total == null || total === 0) return "text-muted-foreground";
-    const pct = (score / total) * 100;
+  const getPercentageColor = (pct: number | null) => {
+    if (pct == null) return "text-muted-foreground";
     if (pct >= 70) return "text-success";
     if (pct >= 40) return "text-amber-500";
     return "text-destructive";
+  };
+
+  const getPercentageBg = (pct: number | null) => {
+    if (pct == null) return "bg-muted";
+    if (pct >= 70) return "bg-success";
+    if (pct >= 40) return "bg-amber-500";
+    return "bg-destructive";
   };
 
   return (
@@ -348,7 +368,11 @@ const TeacherDashboard = () => {
             </button>
           ))}
         </nav>
-        <div className="p-3">
+        <div className="p-3 border-t border-border/50">
+          <div className="px-3 py-2 mb-2">
+            <p className="text-sm font-medium truncate">{userName}</p>
+            <p className="text-xs text-muted-foreground truncate">{profileEmail}</p>
+          </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all">
             <LogOut className="h-4 w-4" /> Sign Out
           </button>
@@ -360,14 +384,24 @@ const TeacherDashboard = () => {
         <header className="sticky top-0 z-40 glass border-b border-border/50 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold capitalize">{activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "reports" ? "Reports" : "Settings"}</h1>
+              <h1 className="text-2xl font-bold capitalize">
+                {activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "reports" ? "Reports" : "Settings"}
+              </h1>
               <p className="text-sm text-muted-foreground">Welcome back, {userName}</p>
             </div>
-            {(activeTab === "dashboard" || activeTab === "exams") && (
-              <Button asChild className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
-                <Link to="/teacher/create"><Plus className="h-4 w-4" /> Create Exam</Link>
-              </Button>
-            )}
+            <div className="flex items-center gap-3">
+              {activeStudents > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success text-sm font-medium animate-pulse">
+                  <span className="h-2 w-2 rounded-full bg-success" />
+                  {activeStudents} student{activeStudents !== 1 ? "s" : ""} online
+                </div>
+              )}
+              {(activeTab === "dashboard" || activeTab === "exams") && (
+                <Button asChild className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
+                  <Link to="/teacher/create"><Plus className="h-4 w-4" /> Create Exam</Link>
+                </Button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -375,9 +409,9 @@ const TeacherDashboard = () => {
           {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
             <>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-4">
                 {stats.map((stat, i) => (
-                  <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+                  <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
                     <Card className="border-border/50 hover:shadow-md transition-shadow">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
@@ -385,7 +419,7 @@ const TeacherDashboard = () => {
                             <p className="text-sm text-muted-foreground">{stat.label}</p>
                             <p className="text-3xl font-bold mt-1">{stat.value}</p>
                           </div>
-                          <div className={`h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center ${stat.color}`}>
+                          <div className={`h-12 w-12 rounded-2xl ${stat.bg} flex items-center justify-center ${stat.color}`}>
                             <stat.icon className="h-6 w-6" />
                           </div>
                         </div>
@@ -395,7 +429,7 @@ const TeacherDashboard = () => {
                 ))}
               </div>
 
-              {/* Recent exams */}
+              {/* Recent exams with live student counts */}
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg">Recent Exams</CardTitle>
@@ -408,7 +442,17 @@ const TeacherDashboard = () => {
                   ) : exams.length === 0 ? (
                     <EmptyExams />
                   ) : (
-                    <ExamsList exams={exams.slice(0, 5)} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} onSendResults={handleSendResults} sendingResultsExamId={sendingResultsExamId} toast={toast} />
+                    <ExamsList
+                      exams={exams.slice(0, 5)}
+                      sessionStatusCounts={sessionStatusCounts}
+                      statusColors={statusColors}
+                      onStart={handleStartExam}
+                      onEdit={openEditExam}
+                      onDelete={setDeletingExamId}
+                      onSendResults={handleSendResults}
+                      sendingResultsExamId={sendingResultsExamId}
+                      toast={toast}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -429,7 +473,17 @@ const TeacherDashboard = () => {
                 ) : exams.length === 0 ? (
                   <EmptyExams />
                 ) : (
-                  <ExamsList exams={exams} sessionCounts={sessionCounts} statusColors={statusColors} onStart={handleStartExam} onEdit={openEditExam} onDelete={setDeletingExamId} onSendResults={handleSendResults} sendingResultsExamId={sendingResultsExamId} toast={toast} />
+                  <ExamsList
+                    exams={exams}
+                    sessionStatusCounts={sessionStatusCounts}
+                    statusColors={statusColors}
+                    onStart={handleStartExam}
+                    onEdit={openEditExam}
+                    onDelete={setDeletingExamId}
+                    onSendResults={handleSendResults}
+                    sendingResultsExamId={sendingResultsExamId}
+                    toast={toast}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -463,12 +517,11 @@ const TeacherDashboard = () => {
                         <TableRow>
                           <TableHead>Student</TableHead>
                           <TableHead>Exam</TableHead>
-                          <TableHead className="text-center">Score</TableHead>
+                          <TableHead className="text-center">Score (%)</TableHead>
+                          <TableHead className="text-center">Progress</TableHead>
                           <TableHead className="text-center text-success">Correct</TableHead>
-                          <TableHead className="text-center text-destructive">Incorrect</TableHead>
-                          <TableHead className="text-center text-muted-foreground">Unanswered</TableHead>
+                          <TableHead className="text-center text-destructive">Wrong</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -487,9 +540,17 @@ const TeacherDashboard = () => {
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
-                              <span className={`font-bold ${getScoreColor(r.score, r.totalMarks)}`}>
-                                {r.score ?? "—"}/{r.totalMarks ?? "—"}
+                              <span className={`text-lg font-bold ${getPercentageColor(r.percentage)}`}>
+                                {r.percentage != null ? `${r.percentage}%` : "—"}
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-24 mx-auto">
+                                <Progress value={r.percentage ?? 0} className={`h-2 ${getPercentageBg(r.percentage)}`} />
+                                <p className="text-xs text-muted-foreground text-center mt-1">
+                                  {r.correct}/{r.totalQuestions}
+                                </p>
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge variant="outline" className="border-success/30 text-success bg-success/5">
@@ -501,21 +562,11 @@ const TeacherDashboard = () => {
                                 {r.incorrect}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant="outline" className="border-border text-muted-foreground">
-                                {r.unanswered}
-                              </Badge>
-                            </TableCell>
                             <TableCell>
                               <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-                                r.status === "submitted" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
+                                r.status === "submitted" ? "bg-success/10 text-success" : r.status === "in_progress" ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
                               }`}>
                                 {r.status}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-xs text-muted-foreground">
-                                {r.totalQuestions} Q
                               </span>
                             </TableCell>
                           </TableRow>
@@ -633,7 +684,7 @@ const EmptyExams = () => (
 
 interface ExamsListProps {
   exams: Exam[];
-  sessionCounts: Record<string, number>;
+  sessionStatusCounts: Record<string, SessionStatusCounts>;
   statusColors: Record<string, string>;
   onStart: (id: string) => void;
   onEdit: (exam: Exam) => void;
@@ -643,45 +694,73 @@ interface ExamsListProps {
   toast: any;
 }
 
-const ExamsList = ({ exams, sessionCounts, statusColors, onStart, onEdit, onDelete, onSendResults, sendingResultsExamId, toast }: ExamsListProps) => (
+const ExamsList = ({ exams, sessionStatusCounts, statusColors, onStart, onEdit, onDelete, onSendResults, sendingResultsExamId, toast }: ExamsListProps) => (
   <div className="space-y-3">
-    {exams.map((exam) => (
-      <div key={exam.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-            <FileText className="h-5 w-5" />
+    {exams.map((exam) => {
+      const counts = sessionStatusCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
+      const liveCount = counts.waiting + counts.in_progress;
+      return (
+        <div key={exam.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium">{exam.title}</p>
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span>{exam.subject}</span>
+                <span>·</span>
+                <span>{exam.duration_minutes} min</span>
+                {exam.max_participants && (
+                  <>
+                    <span>·</span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {counts.total}/{exam.max_participants}
+                    </span>
+                  </>
+                )}
+              </div>
+              {/* Live student counts */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-muted-foreground">{counts.total} joined</span>
+                {liveCount > 0 && (
+                  <span className="text-xs flex items-center gap-1 text-success font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                    {liveCount} live
+                  </span>
+                )}
+                {counts.submitted > 0 && (
+                  <span className="text-xs text-muted-foreground">{counts.submitted} submitted</span>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="font-medium">{exam.title}</p>
-            <p className="text-sm text-muted-foreground">
-              {exam.subject} · {sessionCounts[exam.id] || 0} students · {exam.duration_minutes} min
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusColors[exam.status] || statusColors.draft}`}>
-            {exam.status}
-          </span>
-          {exam.status === "published" && (
-            <Button size="sm" variant="outline" className="gap-1.5 text-success border-success/20 hover:bg-success/10" onClick={() => onStart(exam.id)}>
-              <Play className="h-3.5 w-3.5" /> Start
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${statusColors[exam.status] || statusColors.draft}`}>
+              {exam.status}
+            </span>
+            {exam.status === "published" && (
+              <Button size="sm" variant="outline" className="gap-1.5 text-success border-success/20 hover:bg-success/10" onClick={() => onStart(exam.id)}>
+                <Play className="h-3.5 w-3.5" /> Start
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onSendResults(exam.id)} disabled={sendingResultsExamId === exam.id}>
+              {sendingResultsExamId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Send Results
             </Button>
-          )}
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onSendResults(exam.id)} disabled={sendingResultsExamId === exam.id}>
-            {sendingResultsExamId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Send Results
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => onEdit(exam)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onDelete(exam.id)}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.netlify.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }}>
-            <Eye className="h-4 w-4" />
-          </Button>
+            <Button size="sm" variant="ghost" onClick={() => onEdit(exam)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onDelete(exam.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.netlify.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }}>
+              <Eye className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-      </div>
-    ))}
+      );
+    })}
   </div>
 );
 
