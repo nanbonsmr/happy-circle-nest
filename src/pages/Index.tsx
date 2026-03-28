@@ -216,33 +216,32 @@ const Index = () => {
             >
               <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-8">
                 <div className="text-center mb-6">
-                  <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-[#1e3a5f] flex items-center justify-center shadow-lg">
+                  <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-[#0f1e2e] flex items-center justify-center shadow-lg">
                     <BookOpen className="h-7 w-7 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-[#0f172a]">
-                    Student Portal
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Enter your exam key to begin
-                  </p>
+                  <h3 className="text-xl font-bold text-[#0f172a]">Student</h3>
+                  <p className="text-sm text-slate-500 mt-1">Enter your exam key to begin</p>
                 </div>
-                <form onSubmit={handleExamKeySubmit} className="space-y-3">
+                <form onSubmit={handleExamKeySubmit} className="flex gap-2">
                   <Input
-                    placeholder="e.g. EXAM-2024-XYZ"
+                    placeholder="Enter exam key"
                     value={examKey}
                     onChange={(e) => setExamKey(e.target.value)}
-                    className="h-12 text-base border-slate-200 focus-visible:ring-[#1e3a5f]"
+                    className="flex-1 h-11 text-sm border-2 border-slate-200 focus-visible:ring-[#1a8fe3] focus-visible:border-[#1a8fe3] rounded-xl"
                   />
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold text-base rounded-xl"
+                    className="h-11 px-5 bg-[#0f1e2e] hover:bg-[#1a2e42] text-white font-semibold text-sm rounded-xl border-0"
                   >
-                    Start Exam <ArrowRight className="ml-2 h-4 w-4" />
+                    Next
                   </Button>
                 </form>
-                <p className="mt-4 text-center text-xs text-slate-400">
-                  No account needed — just your exam key
-                </p>
+                <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                  <Link to="/student#cheat-prevention" className="hover:text-[#1a8fe3] hover:underline transition-colors">
+                    Read more about our cheat-prevention systems
+                  </Link>
+                </div>
               </div>
             </motion.div>
           </div>
