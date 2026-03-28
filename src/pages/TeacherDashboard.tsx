@@ -1,18 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+
+afterimport { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus, FileText, Users, BarChart3, Settings, LogOut,
   LayoutDashboard, Play, Loader2, Pencil, Trash2, Mail,
-  Activity, UserCheck, ShieldAlert, Eye,
+  Activity, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -21,7 +20,6 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Exam = Tables<"exams">;
 type ActiveTab = "dashboard" | "exams" | "reports" | "settings";
-
 interface SessionCounts { total: number; waiting: number; in_progress: number; submitted: number; }
 interface StudentReport {
   sessionId: string; studentName: string; studentEmail: string;
@@ -32,6 +30,13 @@ interface StudentReport {
   tabSwitches: number; fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High";
 }
+
+const statusColors: Record<string, string> = {
+  draft: "bg-slate-100 text-slate-500",
+  published: "bg-blue-100 text-blue-600",
+  active: "bg-green-100 text-green-600",
+  completed: "bg-slate-100 text-slate-500",
+};
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
@@ -91,7 +96,6 @@ const TeacherDashboard = () => {
     init();
   }, [navigate, loadCounts]);
 
-  // Realtime session updates
   useEffect(() => {
     if (!exams.length) return;
     const channel = supabase.channel("teacher-sessions")
@@ -113,7 +117,7 @@ const TeacherDashboard = () => {
       const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);
       const { data: answers } = await supabase.from("student_answers").select("*").in("session_id", sessionIds);
-      const { data: cheatLogs } = await supabase.from("cheat_logs").select("session_id, event_type").in("session_id", sessionIds);
+      const { data: cheatLogs } = await supabase.from("cheat_logs" as any).select("session_id, event_type").in("session_id", sessionIds);
       const examMap = Object.fromEntries(exams.map((e) => [e.id, e]));
       const qPerExam: Record<string, number> = {};
       (questions || []).forEach((q) => { qPerExam[q.exam_id] = (qPerExam[q.exam_id] || 0) + 1; });
@@ -125,7 +129,7 @@ const TeacherDashboard = () => {
         const answered = sa.filter((a) => a.selected_answer).length;
         const exam = examMap[s.exam_id];
         const pct = totalQ > 0 ? Math.round((correct / totalQ) * 100) : null;
-        const logs = (cheatLogs || []).filter((l) => l.session_id === s.id);
+        const logs = ((cheatLogs as any[]) || []).filter((l) => l.session_id === s.id);
         const tabSwitches = logs.filter((l) => l.event_type === "tab_switch").length;
         const fullscreenExits = logs.filter((l) => l.event_type === "fullscreen_exit").length;
         const total = logs.length;
@@ -186,8 +190,11 @@ const TeacherDashboard = () => {
       if (error) throw error;
       setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
       toast({ title: "Exam deleted!" });
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    setDeleteLoading(false); setDeletingExamId(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+    setDeleteLoading(false);
+    setDeletingExamId(null);
   };
 
   const handleSendResults = async (examId: string) => {
@@ -199,8 +206,10 @@ const TeacherDashboard = () => {
         body: { examId, senderEmail: profileEmail || session.user.email, senderName: userName },
       });
       if (error) throw error;
-      toast({ title: data?.sent > 0 ? "Results sent!" : "No results to send", description: data?.sent > 0 ? `Sent to ${data.sent} students.` : undefined });
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+      toast({ title: (data as any)?.sent > 0 ? "Results sent!" : "No results to send" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
     setSendingId(null);
   };
 
@@ -215,17 +224,9 @@ const TeacherDashboard = () => {
   const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b.total, 0);
   const liveStudents = Object.values(sessionCounts).reduce((a, b) => a + b.waiting + b.in_progress, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
-  const submittedTotal = Object.values(sessionCounts).reduce((a, b) => a + b.submitted, 0);
   const avgScore = reports.filter((r) => r.percentage !== null).length > 0
     ? Math.round(reports.filter((r) => r.percentage !== null).reduce((a, r) => a + (r.percentage || 0), 0) / reports.filter((r) => r.percentage !== null).length)
     : 0;
-
-  const statusColors: Record<string, string> = {
-    draft: "bg-slate-100 text-slate-500",
-    published: "bg-blue-100 text-blue-600",
-    active: "bg-green-100 text-green-600",
-    completed: "bg-slate-100 text-slate-500",
-  };
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", tab: "dashboard" },
@@ -242,9 +243,13 @@ const TeacherDashboard = () => {
 
   return (
     <DashboardLayout
-      activeTab={activeTab} onTabChange={(t) => setActiveTab(t as ActiveTab)}
-      navItems={navItems} onLogout={handleLogout}
-      userName={userName} userEmail={profileEmail} role="teacher"
+      activeTab={activeTab}
+      onTabChange={(t) => setActiveTab(t as ActiveTab)}
+      navItems={navItems}
+      onLogout={handleLogout}
+      userName={userName}
+      userEmail={profileEmail}
+      role="teacher"
       headerTitle={activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "reports" ? "Reports" : "Settings"}
       liveCount={liveStudents}
       headerAction={
@@ -255,6 +260,7 @@ const TeacherDashboard = () => {
         ) : undefined
       }
     >
+
       {/* Dashboard Tab */}
       {activeTab === "dashboard" && (
         <div className="space-y-5">
@@ -264,8 +270,6 @@ const TeacherDashboard = () => {
             <StatCard label="Total Students" value={String(totalStudents)} icon={Users} accent="border-l-purple-400" iconBg="bg-purple-50" iconColor="text-purple-500" index={2} />
             <StatCard label="Avg Score" value={reports.length > 0 ? `${avgScore}%` : "—"} icon={BarChart3} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
           </div>
-
-          {/* Recent exams table */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h2 className="font-bold text-[#1e3a5f]">Exams Scheduled</h2>
@@ -309,19 +313,13 @@ const TeacherDashboard = () => {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1">
                               {exam.status === "published" && (
-                                <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="Start exam">
-                                  <Play className="h-3.5 w-3.5" />
-                                </button>
+                                <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start exam"><Play className="h-3.5 w-3.5" /></button>
                               )}
-                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Edit">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors" title="Send results">
+                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
                                 {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                               </button>
-                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Delete">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </td>
                         </tr>
@@ -352,54 +350,18 @@ const TeacherDashboard = () => {
                     <th className="text-left px-4 py-3 font-semibold">Subject</th>
                     <th className="text-left px-4 py-3 font-semibold">Duration</th>
                     <th className="text-left px-4 py-3 font-semibold">Code</th>
-                    <th className="text-left px-4 py-3 font-semibold">Students</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exams.map((exam) => {
-                    const counts = sessionCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
-                    return (
-                      <tr key={exam.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
-                        <td className="px-5 py-3.5 font-semibold text-[#1e3a5f]">{exam.title}</td>
-                        <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
-                        <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
-                        <td className="px-4 py-3.5 font-mono text-xs text-slate-500">{exam.access_code}</td>
-                        <td className="px-4 py-3.5 font-medium text-[#1e3a5f]">{counts.total}</td>
+                    <td className="px-4 py-3.5 font-medium text-[#1e3a5f]">{counts.total}</td>
                         <td className="px-4 py-3.5">
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColors[exam.status] || statusColors.draft}`}>{exam.status}</span>
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1">
                             {exam.status === "published" && (
-                              <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start">
-                                <Play className="h-3.5 w-3.5" />
-                              </button>
+                              <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>
                             )}
-                            <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link">
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
-                              {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                            </button>
-                            <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                            <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link"><Eye className="h-3.5 w-3.5" /></button>
+                            <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send res
 
       {/* Reports Tab */}
       {activeTab === "reports" && (
@@ -418,13 +380,7 @@ const TeacherDashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-5 py-3 font-semibold">Student</th>
-                    <th className="text-left px-4 py-3 font-semibold">Exam</th>
-                    <th className="text-center px-4 py-3 font-semibold">Score</th>
-                    <th className="text-center px-4 py-3 font-semibold">Progress</th>
-                    <th className="text-center px-4 py-3 font-semibold">Risk</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
+                  <tr className="bg-slate-50 text-xs text-sla">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,7 +409,7 @@ const TeacherDashboard = () => {
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>
                           {r.suspiciousScore}
                         </span>
-                        <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t·{r.fullscreenExits}fs</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t · {r.fullscreenExits}fs</p>
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
@@ -468,70 +424,3 @@ const TeacherDashboard = () => {
           )}
         </div>
       )}
-
-      {/* Settings Tab */}
-      {activeTab === "settings" && (
-        <div className="space-y-4 max-w-lg">
-          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-            <h2 className="font-bold text-[#1e3a5f]">Profile Settings</h2>
-            <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={profileEmail} disabled className="bg-slate-50" />
-              <p className="text-xs text-slate-400">Email cannot be changed.</p>
-            </div>
-            <Button onClick={handleSaveProfile} disabled={savingProfile} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
-              {savingProfile ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
-            <h2 className="font-bold text-[#1e3a5f]">Account</h2>
-            <p className="text-sm text-slate-500">Contact your admin for password resets or account changes.</p>
-            <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" /> Sign Out
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Exam Dialog */}
-      <Dialog open={!!editingExam} onOpenChange={(open) => !open && setEditingExam(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Exam</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label>Title</Label><Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Subject</Label><Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Duration (minutes)</Label><Input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingExam(null)}>Cancel</Button>
-            <Button onClick={handleEditExam} disabled={editSaving} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
-              {editSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirm */}
-      <AlertDialog open={!!deletingExamId} onOpenChange={(open) => !open && setDeletingExamId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Exam</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the exam, all questions, sessions, and answers. This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteExam} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleteLoading ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </DashboardLayout>
-  );
-};
-
-export default TeacherDashboard;
