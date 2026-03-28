@@ -126,9 +126,3 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-}
-
-.exam-fullscreen {
-  user-select: none;
-  -webkit-user-select: none;
-}
