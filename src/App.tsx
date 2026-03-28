@@ -13,6 +13,7 @@ import AdminLogin from "./pages/AdminLogin";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import CreateExam from "./pages/CreateExam";
+import StudentEntry from "./pages/StudentEntry";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/student" element={<StudentEntry />} />
           <Route path="/exam/:accessCode" element={<StudentAccess />} />
           <Route path="/exam/:accessCode/ready" element={<ExamReady />} />
           <Route path="/exam/:accessCode/take" element={<ExamPage />} />
