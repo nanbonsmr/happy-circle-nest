@@ -181,6 +181,12 @@ export type Database = {
           option_d: string
           question_order: number
           question_text: string
+          block_id: string | null
+          instructions: string | null
+          paragraph: string | null
+          image_url: string | null
+          image_caption: string | null
+          block_order: number
         }
         Insert: {
           correct_answer: string
@@ -194,6 +200,12 @@ export type Database = {
           option_d: string
           question_order?: number
           question_text: string
+          block_id?: string | null
+          instructions?: string | null
+          paragraph?: string | null
+          image_url?: string | null
+          image_caption?: string | null
+          block_order?: number
         }
         Update: {
           correct_answer?: string
@@ -207,6 +219,12 @@ export type Database = {
           option_d?: string
           question_order?: number
           question_text?: string
+          block_id?: string | null
+          instructions?: string | null
+          paragraph?: string | null
+          image_url?: string | null
+          image_caption?: string | null
+          block_order?: number
         }
         Relationships: [
           {
