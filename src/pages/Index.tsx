@@ -69,8 +69,10 @@ const Index = () => {
 
   const handleExamKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (examKey.trim()) {
-      navigate(`/exam/${examKey.trim()}`);
+    const key = examKey.trim();
+    if (key) {
+      // Route through /student so validation happens cleanly
+      navigate(`/exam/${key}`);
     }
   };
 
