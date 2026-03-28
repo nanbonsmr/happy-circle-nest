@@ -83,7 +83,9 @@ const AdminDashboard = () => {
     setActiveExams((allExams || []).filter((e) => e.status === "active").length);
     const { data: sessions } = await supabase.from("exam_sessions").select("id, student_name, student_email, score, total_marks, status, submitted_at, exam_id");
     setTotalStudents(sessions?.length || 0);
-    const examMap = new Map((allExams || []).map((e) => [e.id, e] as [string, typeof e]));
+    const examMap: Map<string, { title: string; subject: string }> = new Map(
+      (allExams || []).map((e) => [e.id, { title: e.title, subject: e.subject || "" }])
+    );
     setResults((sessions || []).map((s: any) => ({ ...s, exam_title: examMap.get(s.exam_id)?.title || "—", exam_subject: examMap.get(s.exam_id)?.subject || "—" })));
   };
 
