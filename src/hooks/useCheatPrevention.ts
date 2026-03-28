@@ -5,14 +5,12 @@ export type SecurityLevel = "low" | "high";
 
 export type CheatEventType =
   | "tab_switch"
-  | "fullscreen_exit"
   | "copy_attempt"
   | "paste_attempt"
   | "right_click"
   | "devtools_open"
   | "inactivity"
-  | "window_resize"
-  | "visibility_change";
+  | "window_resize";
 
 interface UseCheatPreventionOptions {
   sessionId: string;
@@ -21,8 +19,9 @@ interface UseCheatPreventionOptions {
   enabled: boolean;
 }
 
-// How long after mount to ignore all events (browser settling time)
-const GRACE_PERIOD_MS = 2500;
+// Ignore all events for this long after mount (browser settling)
+const GRACE_PERIOD_MS = 3000;
+const INACTIVITY_THRESHOLD = 120_000; // 2 minutes
 
 export function useCheatPrevention({
   sessionId,
@@ -32,24 +31,23 @@ export function useCheatPrevention({
 }: UseCheatPreventionOptions) {
   const countsRef = useRef<Record<CheatEventType, number>>({
     tab_switch: 0,
-    fullscreen_exit: 0,
     copy_attempt: 0,
     paste_attempt: 0,
     right_click: 0,
     devtools_open: 0,
     inactivity: 0,
     window_resize: 0,
-    visibility_change: 0,
   });
 
-  // True while we are in the startup grace period — events are ignored
   const readyRef = useRef(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const INACTIVITY_THRESHOLD = 120_000; // 2 minutes
+  // Debounce resize so rapid resize events only count once
+  const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce fullscreen re-entry so it doesn't flicker
+  const fullscreenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const logEvent = useCallback(
     async (eventType: CheatEventType, detail?: string) => {
-      // Drop events during grace period or when disabled
       if (!readyRef.current || !sessionId || !enabled) return;
 
       countsRef.current[eventType] = (countsRef.current[eventType] || 0) + 1;
@@ -62,7 +60,7 @@ export function useCheatPrevention({
           detail: detail ?? null,
         });
       } catch {
-        // silently fail — never interrupt the exam
+        // never interrupt the exam
       }
     },
     [sessionId, enabled, onWarning]
@@ -75,6 +73,7 @@ export function useCheatPrevention({
     }, INACTIVITY_THRESHOLD);
   }, [logEvent]);
 
+  // Silently re-enter fullscreen — NO warning, NO count
   const requestFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
@@ -84,46 +83,60 @@ export function useCheatPrevention({
   useEffect(() => {
     if (!enabled) return;
 
-    // Reset ready flag and start grace period
+    // Grace period — ignore all events while browser is settling
     readyRef.current = false;
     const graceTimer = setTimeout(() => {
       readyRef.current = true;
     }, GRACE_PERIOD_MS);
 
-    // Request fullscreen immediately (this may fire fullscreenchange during grace period — safe)
+    // Enter fullscreen silently on mount
     requestFullscreen();
 
-    // ── Fullscreen exit ──────────────────────────────────────────────────────
+    // ── Fullscreen: silently re-enter, NEVER count as violation ─────────────
+    // Clicking radio buttons / interactive elements can briefly exit fullscreen
+    // in some browsers. We just silently re-enter with a debounce.
     const onFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        logEvent("fullscreen_exit");
-        setTimeout(requestFullscreen, 600);
+        if (fullscreenTimer.current) clearTimeout(fullscreenTimer.current);
+        fullscreenTimer.current = setTimeout(() => {
+          requestFullscreen();
+        }, 800);
       }
     };
 
-    // ── Tab switch (page hidden) ─────────────────────────────────────────────
-    // visibilitychange is the reliable cross-browser signal for tab switching.
-    // We do NOT use window blur — it fires on every in-page click in some browsers.
+    // ── Tab switch — only real cheat signal ──────────────────────────────────
     const onVisibilityChange = () => {
       if (document.hidden) {
         logEvent("tab_switch");
       }
     };
 
-    // ── Window resize (split-screen detection) ───────────────────────────────
+    // ── Window resize — split-screen detection (debounced) ───────────────────
     let lastWidth = window.innerWidth;
     let lastHeight = window.innerHeight;
     const onResize = () => {
-      const dw = Math.abs(window.innerWidth - lastWidth);
-      const dh = Math.abs(window.innerHeight - lastHeight);
-      if (dw > 150 || dh > 150) {
-        logEvent("window_resize", `${window.innerWidth}x${window.innerHeight}`);
-      }
-      lastWidth = window.innerWidth;
-      lastHeight = window.innerHeight;
+      if (resizeTimer.current) clearTimeout(resizeTimer.current);
+      resizeTimer.current = setTimeout(() => {
+        const dw = Math.abs(window.innerWidth - lastWidth);
+        const dh = Math.abs(window.innerHeight - lastHeight);
+        if (dw > 200 || dh > 200) {
+          logEvent("window_resize", `${window.innerWidth}x${window.innerHeight}`);
+        }
+        lastWidth = window.innerWidth;
+        lastHeight = window.innerHeight;
+      }, 500);
     };
 
-    // ── High security only ───────────────────────────────────────────────────
+    // ── Right-click: blocked for ALL security levels ─────────────────────────
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      // Only count as violation in high security
+      if (securityLevel === "high") {
+        logEvent("right_click");
+      }
+    };
+
+    // ── High security extras ─────────────────────────────────────────────────
     const onCopy = (e: ClipboardEvent) => {
       if (securityLevel === "high") {
         e.preventDefault();
@@ -136,12 +149,6 @@ export function useCheatPrevention({
         logEvent("paste_attempt");
       }
     };
-    const onContextMenu = (e: MouseEvent) => {
-      if (securityLevel === "high") {
-        e.preventDefault();
-        logEvent("right_click");
-      }
-    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (securityLevel !== "high") return;
       const blocked =
@@ -152,7 +159,10 @@ export function useCheatPrevention({
         e.key === "Meta";
       if (blocked) {
         e.preventDefault();
-        if (e.key === "F12" || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "i")) {
+        if (
+          e.key === "F12" ||
+          (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "i")
+        ) {
           logEvent("devtools_open");
         }
       }
@@ -163,26 +173,29 @@ export function useCheatPrevention({
     activityEvents.forEach((ev) => document.addEventListener(ev, resetInactivity));
     resetInactivity();
 
-    // Attach listeners
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("resize", onResize);
+    document.addEventListener("contextmenu", onContextMenu);
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
-    document.addEventListener("contextmenu", onContextMenu);
     document.addEventListener("keydown", onKeyDown);
 
     return () => {
       clearTimeout(graceTimer);
+      if (fullscreenTimer.current) clearTimeout(fullscreenTimer.current);
+      if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
-      document.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("keydown", onKeyDown);
-      activityEvents.forEach((ev) => document.removeEventListener(ev, resetInactivity));
+      activityEvents.forEach((ev) =>
+        document.removeEventListener(ev, resetInactivity)
+      );
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     };
