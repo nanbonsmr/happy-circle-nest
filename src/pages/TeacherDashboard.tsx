@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus, FileText, Users, BarChart3, Settings, LogOut,
   LayoutDashboard, Play, Loader2, Pencil, Trash2, Mail,
-  Activity, UserCheck, ShieldAlert,
+  Activity, UserCheck, ShieldAlert, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,7 @@ const TeacherDashboard = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const loadCounts = async (list: Exam[]) => {
+  const loadCounts = useCallback(async (list: Exam[]) => {
     if (!list.length) return;
     const counts: Record<string, SessionCounts> = {};
     for (const exam of list) {
@@ -70,7 +70,7 @@ const TeacherDashboard = () => {
       };
     }
     setSessionCounts(counts);
-  };
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -89,4 +89,449 @@ const TeacherDashboard = () => {
       setLoading(false);
     };
     init();
-  }, [navigate]);
+  }, [navigate, loadCounts]);
+
+  // Realtime session updates
+  useEffect(() => {
+    if (!exams.length) return;
+    const channel = supabase.channel("teacher-sessions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions" }, () => loadCounts(exams))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [exams, loadCounts]);
+
+  useEffect(() => {
+    if (activeTab === "reports" && exams.length > 0 && reports.length === 0) loadReports();
+  }, [activeTab, exams]);
+
+  const loadReports = async () => {
+    setReportsLoading(true);
+    try {
+      const examIds = exams.map((e) => e.id);
+      const { data: sessions } = await supabase.from("exam_sessions").select("*").in("exam_id", examIds);
+      if (!sessions?.length) { setReports([]); setReportsLoading(false); return; }
+      const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
+      const sessionIds = sessions.map((s) => s.id);
+      const { data: answers } = await supabase.from("student_answers").select("*").in("session_id", sessionIds);
+      const { data: cheatLogs } = await supabase.from("cheat_logs").select("session_id, event_type").in("session_id", sessionIds);
+      const examMap = Object.fromEntries(exams.map((e) => [e.id, e]));
+      const qPerExam: Record<string, number> = {};
+      (questions || []).forEach((q) => { qPerExam[q.exam_id] = (qPerExam[q.exam_id] || 0) + 1; });
+      const reps: StudentReport[] = sessions.map((s) => {
+        const sa = (answers || []).filter((a) => a.session_id === s.id);
+        const totalQ = qPerExam[s.exam_id] || 0;
+        const correct = sa.filter((a) => a.is_correct === true).length;
+        const incorrect = sa.filter((a) => a.is_correct === false).length;
+        const answered = sa.filter((a) => a.selected_answer).length;
+        const exam = examMap[s.exam_id];
+        const pct = totalQ > 0 ? Math.round((correct / totalQ) * 100) : null;
+        const logs = (cheatLogs || []).filter((l) => l.session_id === s.id);
+        const tabSwitches = logs.filter((l) => l.event_type === "tab_switch").length;
+        const fullscreenExits = logs.filter((l) => l.event_type === "fullscreen_exit").length;
+        const total = logs.length;
+        const suspiciousScore: "Low" | "Medium" | "High" = total >= 8 ? "High" : total >= 3 ? "Medium" : "Low";
+        return {
+          sessionId: s.id, studentName: s.student_name, studentEmail: s.student_email,
+          examTitle: exam?.title || "Unknown", examSubject: exam?.subject || "",
+          score: s.score, totalMarks: s.total_marks, status: s.status,
+          submittedAt: s.submitted_at, correct, incorrect, unanswered: totalQ - answered,
+          totalQuestions: totalQ, percentage: pct, tabSwitches, fullscreenExits, suspiciousScore,
+        };
+      });
+      setReports(reps);
+    } catch (err: any) {
+      toast({ title: "Error loading reports", description: err.message, variant: "destructive" });
+    }
+    setReportsLoading(false);
+  };
+
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
+
+  const handleStartExam = async (examId: string) => {
+    const { error } = await supabase.from("exams").update({ status: "active", started_at: new Date().toISOString() }).eq("id", examId);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "active", started_at: new Date().toISOString() } : e));
+    toast({ title: "Exam started!" });
+  };
+
+  const openEditExam = (exam: Exam) => {
+    setEditingExam(exam); setEditTitle(exam.title);
+    setEditSubject(exam.subject); setEditDuration(String(exam.duration_minutes));
+  };
+
+  const handleEditExam = async () => {
+    if (!editingExam) return;
+    setEditSaving(true);
+    const { error } = await supabase.from("exams").update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 }).eq("id", editingExam.id);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
+    else {
+      setExams((prev) => prev.map((e) => e.id === editingExam.id ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 } : e));
+      toast({ title: "Exam updated!" }); setEditingExam(null);
+    }
+    setEditSaving(false);
+  };
+
+  const handleDeleteExam = async () => {
+    if (!deletingExamId) return;
+    setDeleteLoading(true);
+    try {
+      const { data: sessions } = await supabase.from("exam_sessions").select("id").eq("exam_id", deletingExamId);
+      if (sessions?.length) {
+        const ids = sessions.map((s) => s.id);
+        await supabase.from("student_answers").delete().in("session_id", ids);
+        await supabase.from("exam_sessions").delete().eq("exam_id", deletingExamId);
+      }
+      await supabase.from("questions").delete().eq("exam_id", deletingExamId);
+      const { error } = await supabase.from("exams").delete().eq("id", deletingExamId);
+      if (error) throw error;
+      setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
+      toast({ title: "Exam deleted!" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    setDeleteLoading(false); setDeletingExamId(null);
+  };
+
+  const handleSendResults = async (examId: string) => {
+    setSendingId(examId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data, error } = await supabase.functions.invoke("send-exam-results", {
+        body: { examId, senderEmail: profileEmail || session.user.email, senderName: userName },
+      });
+      if (error) throw error;
+      toast({ title: data?.sent > 0 ? "Results sent!" : "No results to send", description: data?.sent > 0 ? `Sent to ${data.sent} students.` : undefined });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    setSendingId(null);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    const { error } = await supabase.from("profiles").update({ full_name: profileName }).eq("id", userId);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
+    else { setUserName(profileName); toast({ title: "Profile updated!" }); }
+    setSavingProfile(false);
+  };
+
+  const totalStudents = Object.values(sessionCounts).reduce((a, b) => a + b.total, 0);
+  const liveStudents = Object.values(sessionCounts).reduce((a, b) => a + b.waiting + b.in_progress, 0);
+  const activeExams = exams.filter((e) => e.status === "active").length;
+  const submittedTotal = Object.values(sessionCounts).reduce((a, b) => a + b.submitted, 0);
+  const avgScore = reports.filter((r) => r.percentage !== null).length > 0
+    ? Math.round(reports.filter((r) => r.percentage !== null).reduce((a, r) => a + (r.percentage || 0), 0) / reports.filter((r) => r.percentage !== null).length)
+    : 0;
+
+  const statusColors: Record<string, string> = {
+    draft: "bg-slate-100 text-slate-500",
+    published: "bg-blue-100 text-blue-600",
+    active: "bg-green-100 text-green-600",
+    completed: "bg-slate-100 text-slate-500",
+  };
+
+  const navItems = [
+    { icon: LayoutDashboard, label: "Dashboard", tab: "dashboard" },
+    { icon: FileText, label: "My Exams", tab: "exams" },
+    { icon: BarChart3, label: "Reports", tab: "reports" },
+    { icon: Settings, label: "Settings", tab: "settings" },
+  ];
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a8fe3] to-[#1565c0]">
+      <Loader2 className="h-8 w-8 animate-spin text-white" />
+    </div>
+  );
+
+  return (
+    <DashboardLayout
+      activeTab={activeTab} onTabChange={(t) => setActiveTab(t as ActiveTab)}
+      navItems={navItems} onLogout={handleLogout}
+      userName={userName} userEmail={profileEmail} role="teacher"
+      headerTitle={activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "reports" ? "Reports" : "Settings"}
+      liveCount={liveStudents}
+      headerAction={
+        (activeTab === "dashboard" || activeTab === "exams") ? (
+          <Button asChild size="sm" className="gap-1.5 bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0 text-xs">
+            <Link to="/teacher/create"><Plus className="h-3.5 w-3.5" /> Create Exam</Link>
+          </Button>
+        ) : undefined
+      }
+    >
+      {/* Dashboard Tab */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard label="Total Exams" value={String(exams.length)} icon={FileText} accent="border-l-blue-400" iconBg="bg-blue-50" iconColor="text-blue-500" index={0} />
+            <StatCard label="Active Exams" value={String(activeExams)} icon={Activity} accent="border-l-green-400" iconBg="bg-green-50" iconColor="text-green-500" sub={liveStudents > 0 ? `${liveStudents} live` : undefined} index={1} />
+            <StatCard label="Total Students" value={String(totalStudents)} icon={Users} accent="border-l-purple-400" iconBg="bg-purple-50" iconColor="text-purple-500" index={2} />
+            <StatCard label="Avg Score" value={reports.length > 0 ? `${avgScore}%` : "—"} icon={BarChart3} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
+          </div>
+
+          {/* Recent exams table */}
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h2 className="font-bold text-[#1e3a5f]">Exams Scheduled</h2>
+              <button type="button" onClick={() => setActiveTab("exams")} className="text-xs text-[#1a8fe3] hover:underline font-medium">View All</button>
+            </div>
+            {exams.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">No exams yet. Create your first exam!</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                      <th className="text-left px-5 py-3 font-semibold">Exam Name</th>
+                      <th className="text-left px-4 py-3 font-semibold">Subject</th>
+                      <th className="text-left px-4 py-3 font-semibold">Duration</th>
+                      <th className="text-left px-4 py-3 font-semibold">Students</th>
+                      <th className="text-left px-4 py-3 font-semibold">Status</th>
+                      <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exams.slice(0, 6).map((exam) => {
+                      const counts = sessionCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
+                      return (
+                        <tr key={exam.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-[#1e3a5f]">{exam.title}</p>
+                            <p className="text-xs text-slate-400 font-mono">{exam.access_code}</p>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
+                          <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
+                          <td className="px-4 py-3.5">
+                            <span className="font-medium text-[#1e3a5f]">{counts.total}</span>
+                            {counts.waiting + counts.in_progress > 0 && (
+                              <span className="ml-1.5 text-xs text-green-600 font-medium">({counts.waiting + counts.in_progress} live)</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColors[exam.status] || statusColors.draft}`}>{exam.status}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1">
+                              {exam.status === "published" && (
+                                <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="Start exam">
+                                  <Play className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Edit">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors" title="Send results">
+                                {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                              </button>
+                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Exams Tab */}
+      {activeTab === "exams" && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="font-bold text-[#1e3a5f]">All Exams ({exams.length})</h2>
+          </div>
+          {exams.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">No exams yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3 font-semibold">Exam Name</th>
+                    <th className="text-left px-4 py-3 font-semibold">Subject</th>
+                    <th className="text-left px-4 py-3 font-semibold">Duration</th>
+                    <th className="text-left px-4 py-3 font-semibold">Code</th>
+                    <th className="text-left px-4 py-3 font-semibold">Students</th>
+                    <th className="text-left px-4 py-3 font-semibold">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exams.map((exam) => {
+                    const counts = sessionCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
+                    return (
+                      <tr key={exam.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3.5 font-semibold text-[#1e3a5f]">{exam.title}</td>
+                        <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
+                        <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
+                        <td className="px-4 py-3.5 font-mono text-xs text-slate-500">{exam.access_code}</td>
+                        <td className="px-4 py-3.5 font-medium text-[#1e3a5f]">{counts.total}</td>
+                        <td className="px-4 py-3.5">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColors[exam.status] || statusColors.draft}`}>{exam.status}</span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1">
+                            {exam.status === "published" && (
+                              <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start">
+                                <Play className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link">
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
+                              {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                            </button>
+                            <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reports Tab */}
+      {activeTab === "reports" && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="font-bold text-[#1e3a5f]">Student Reports</h2>
+            <button type="button" onClick={loadReports} disabled={reportsLoading} className="text-xs text-[#1a8fe3] hover:underline font-medium">
+              {reportsLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+          {reportsLoading ? (
+            <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#1a8fe3]" /></div>
+          ) : reports.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">No submissions yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3 font-semibold">Student</th>
+                    <th className="text-left px-4 py-3 font-semibold">Exam</th>
+                    <th className="text-center px-4 py-3 font-semibold">Score</th>
+                    <th className="text-center px-4 py-3 font-semibold">Progress</th>
+                    <th className="text-center px-4 py-3 font-semibold">Risk</th>
+                    <th className="text-left px-4 py-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((r) => (
+                    <tr key={r.sessionId} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <p className="font-semibold text-[#1e3a5f]">{r.studentName}</p>
+                        <p className="text-xs text-slate-400">{r.studentEmail}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="font-medium text-slate-700">{r.examTitle}</p>
+                        <p className="text-xs text-slate-400">{r.examSubject}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`text-base font-bold ${r.percentage !== null && r.percentage >= 70 ? "text-green-600" : r.percentage !== null && r.percentage >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                          {r.percentage !== null ? `${r.percentage}%` : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="w-20 mx-auto">
+                          <Progress value={r.percentage ?? 0} className="h-1.5" />
+                          <p className="text-xs text-slate-400 text-center mt-1">{r.correct}/{r.totalQuestions}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>
+                          {r.suspiciousScore}
+                        </span>
+                        <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t·{r.fullscreenExits}fs</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === "settings" && (
+        <div className="space-y-4 max-w-lg">
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+            <h2 className="font-bold text-[#1e3a5f]">Profile Settings</h2>
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={profileEmail} disabled className="bg-slate-50" />
+              <p className="text-xs text-slate-400">Email cannot be changed.</p>
+            </div>
+            <Button onClick={handleSaveProfile} disabled={savingProfile} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+              {savingProfile ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <h2 className="font-bold text-[#1e3a5f]">Account</h2>
+            <p className="text-sm text-slate-500">Contact your admin for password resets or account changes.</p>
+            <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" /> Sign Out
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exam Dialog */}
+      <Dialog open={!!editingExam} onOpenChange={(open) => !open && setEditingExam(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Exam</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label>Title</Label><Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Subject</Label><Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Duration (minutes)</Label><Input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingExam(null)}>Cancel</Button>
+            <Button onClick={handleEditExam} disabled={editSaving} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+              {editSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deletingExamId} onOpenChange={(open) => !open && setDeletingExamId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Exam</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the exam, all questions, sessions, and answers. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteExam} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DashboardLayout>
+  );
+};
+
+export default TeacherDashboard;
