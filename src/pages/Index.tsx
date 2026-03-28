@@ -98,7 +98,7 @@ const Index = () => {
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
                 <Button size="lg" asChild className="gradient-primary border-0 text-primary-foreground hover:opacity-90 h-12 px-8 text-base font-semibold rounded-full">
                   <Link to="/login">
-                    Sign Up For Free
+                    Sign In 
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild className="h-12 px-8 text-base rounded-full">
