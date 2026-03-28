@@ -30,14 +30,12 @@ const MAX_VIOLATIONS = 3;
 
 const EVENT_LABELS: Record<CheatEventType, string> = {
   tab_switch: "Tab switching",
-  fullscreen_exit: "Exiting fullscreen",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
   right_click: "Right-clicking",
   devtools_open: "Opening DevTools",
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
-  visibility_change: "Hiding the page",
 };
 
 // ── Warning overlay — escalates based on total violation count ──────────────
