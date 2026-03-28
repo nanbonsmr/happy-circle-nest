@@ -7,8 +7,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -30,9 +28,9 @@ const MAX_VIOLATIONS = 3;
 
 const EVENT_LABELS: Record<CheatEventType, string> = {
   tab_switch: "Tab switching",
+  fullscreen_exit: "Exiting fullscreen (Escape / shortcut)",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
-  right_click: "Right-clicking",
   devtools_open: "Opening DevTools",
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
@@ -534,33 +532,38 @@ const ExamPage = () => {
                   </span>
                 </div>
                 <h2 className="text-xl font-semibold mb-6 mt-4">{q.question_text}</h2>
-                <RadioGroup
-                  value={answers[q.id] || ""}
-                  onValueChange={(value) => saveAnswer(q.id, value)}
-                  className="space-y-3"
-                >
-                  {options.map((opt, i) => (
-                    <motion.div
-                      key={opt.key}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                    >
-                      <Label
-                        htmlFor={`option-${opt.key}`}
-                        className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all hover:border-primary/30 hover:bg-primary/5 ${
-                          answers[q.id] === opt.key
+                {/* Custom answer selector — no native focus, prevents Chrome fullscreen exit */}
+                <div className="space-y-3">
+                  {options.map((opt, i) => {
+                    const selected = answers[q.id] === opt.key;
+                    return (
+                      <motion.div
+                        key={opt.key}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => saveAnswer(q.id, opt.key)}
+                        className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all select-none ${
+                          selected
                             ? "border-primary bg-primary/5 shadow-sm"
-                            : "border-border"
+                            : "border-border hover:border-primary/30 hover:bg-primary/5"
                         }`}
                       >
-                        <RadioGroupItem value={opt.key} id={`option-${opt.key}`} />
+                        {/* Custom radio circle */}
+                        <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          selected ? "border-primary" : "border-slate-400"
+                        }`}>
+                          {selected && (
+                            <div className="h-2 w-2 rounded-full bg-primary" />
+                          )}
+                        </div>
                         <span className="font-medium text-sm">{opt.key}.</span>
                         <span>{opt.text}</span>
-                      </Label>
-                    </motion.div>
-                  ))}
-                </RadioGroup>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
