@@ -174,7 +174,7 @@ const ExamPage = () => {
       if (!exam || exam.status !== "active") { setExamEnded(true); setLoading(false); return; }
 
       setExamId(exam.id);
-      setSecurityLevel((exam.security_level as SecurityLevel) || "low");
+      setSecurityLevel(((exam as any).security_level as SecurityLevel) || "low");
 
       const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
       const endTime = startedAt + exam.duration_minutes * 60 * 1000;
