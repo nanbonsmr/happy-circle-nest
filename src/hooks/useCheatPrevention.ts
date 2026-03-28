@@ -84,34 +84,6 @@ export function useCheatPrevention({
       if (document.hidden) logEvent("tab_switch");
     };
 
-    // ── Prevent focus shift on click — keeps Chrome in fullscreen ────────────
-    // Chrome exits fullscreen when focus moves to an element outside the
-    // fullscreen element. By immediately re-focusing documentElement on every
-    // mousedown (capture phase), we prevent that focus shift entirely.
-    const onMouseDown = (e: MouseEvent) => {
-      // Keep focus on the fullscreen root so Chrome never exits fullscreen
-      if (document.fullscreenElement) {
-        const target = e.target as HTMLElement;
-        // Only intercept if target is not an input that needs real focus
-        if (target && target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
-          document.documentElement.focus();
-        }
-      }
-    };
-
-    // ── Fullscreen exit — only fires for deliberate exits (Escape) ───────────
-    // With the mousedown focus guard above, clicks should never cause this.
-    const onFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        logEvent("fullscreen_exit", "Exited fullscreen");
-        setTimeout(() => {
-          document.documentElement
-            .requestFullscreen({ navigationUI: "hide" })
-            .catch(() => {});
-        }, 300);
-      }
-    };
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F11") {
         e.preventDefault();
@@ -181,8 +153,6 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    document.addEventListener("mousedown", onMouseDown, true);
-    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu, true);
@@ -194,8 +164,6 @@ export function useCheatPrevention({
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      document.removeEventListener("mousedown", onMouseDown, true);
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu, true);

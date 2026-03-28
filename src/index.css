@@ -127,4 +127,9 @@
     -webkit-user-select: none;
     user-select: none;
   }
+  .exam-option {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
