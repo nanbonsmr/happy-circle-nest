@@ -160,13 +160,13 @@ const CheatWarningOverlay = ({
           </span>{" "}
           before you are removed from this exam.
         </p>
-        <Button
-          type="button"
-          onClick={onDismiss}
-          className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl"
-        >
-          OK — Return to Exam
-        </Button>
+          <Button
+            type="button"
+            onClick={onDismiss}
+            className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl"
+          >
+            OK — Return to Exam
+          </Button>
       </motion.div>
     </motion.div>
   );
@@ -574,6 +574,7 @@ const ExamPage = () => {
           <Button
             type="button"
             variant="outline"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
             disabled={currentQuestion === 0}
             className="gap-2"
@@ -583,6 +584,7 @@ const ExamPage = () => {
           {isLastQuestion ? (
             <Button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSubmit(false)}
               disabled={!allAnswered || submitting}
               className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90"
@@ -593,6 +595,7 @@ const ExamPage = () => {
           ) : (
             <Button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setCurrentQuestion((p) => Math.min(questions.length - 1, p + 1))}
               className="gap-2"
             >
@@ -614,6 +617,7 @@ const ExamPage = () => {
             <button
               key={qu.id}
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setCurrentQuestion(i)}
               className={`h-9 w-9 rounded-lg text-sm font-medium transition-all ${
                 i === currentQuestion

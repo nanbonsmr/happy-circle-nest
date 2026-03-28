@@ -21,8 +21,6 @@ interface UseCheatPreventionOptions {
 
 const GRACE_PERIOD_MS = 3500;
 const INACTIVITY_THRESHOLD = 120_000;
-// If fullscreen exits within this many ms after a mouse click, it's browser-caused (not Escape)
-const CLICK_FULLSCREEN_WINDOW_MS = 600;
 
 export function useCheatPrevention({
   sessionId,
@@ -43,8 +41,6 @@ export function useCheatPrevention({
   const readyRef = useRef(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Timestamp of last mouse click — used to detect browser-caused fullscreen exits
-  const lastClickTimeRef = useRef(0);
   const lastSizeRef = useRef({ w: window.innerWidth, h: window.innerHeight });
 
   const logEvent = useCallback(
@@ -70,6 +66,7 @@ export function useCheatPrevention({
     }, INACTIVITY_THRESHOLD);
   }, [logEvent]);
 
+  // Called externally (e.g. when warning is dismissed) to re-enter fullscreen
   const requestFullscreen = useCallback(() => {
     if (document.fullscreenElement) return;
     document.documentElement
@@ -86,45 +83,28 @@ export function useCheatPrevention({
       readyRef.current = true;
     }, GRACE_PERIOD_MS);
 
+    // Enter fullscreen once on mount
     requestFullscreen();
 
-    // ── Track mouse clicks so we can tell if fullscreen exit was browser-caused ──
-    const onMouseDown = () => {
-      lastClickTimeRef.current = Date.now();
-    };
-
-    // ── Fullscreen change ────────────────────────────────────────────────────
+    // ── Fullscreen exit detection ────────────────────────────────────────────
+    // We do NOT auto-re-enter here — that causes the flicker when clicking answers.
+    // Instead we only log the violation. The ExamPage re-enters fullscreen when
+    // the student dismisses the warning overlay.
+    // Chrome exits fullscreen on Escape — we can't block it but we can detect it.
     const onFullscreenChange = () => {
-      if (document.fullscreenElement) return; // entered fullscreen — ignore
-
-      const timeSinceClick = Date.now() - lastClickTimeRef.current;
-      const browserCaused = timeSinceClick < CLICK_FULLSCREEN_WINDOW_MS;
-
-      if (browserCaused) {
-        // Radio button / UI click caused this — silently re-enter, no warning
-        setTimeout(requestFullscreen, 200);
-      } else {
-        // Student pressed Escape or used a shortcut — count as violation
-        logEvent("fullscreen_exit", "Deliberate exit (Escape or shortcut)");
-        // Re-enter fullscreen after showing warning
-        setTimeout(requestFullscreen, 300);
+      if (!document.fullscreenElement) {
+        // Only log if past grace period (not the initial mount transition)
+        logEvent("fullscreen_exit", "Exited fullscreen");
       }
     };
 
-    // ── Block Escape key — can't prevent fullscreen exit but we can log it ───
-    // We also block other common exit shortcuts
+    // ── Block Escape from being used silently (can't prevent fullscreen exit
+    //    but we zero the click time so fullscreenchange counts it) ────────────
     const onKeyDown = (e: KeyboardEvent) => {
-      // Escape — browser will still exit fullscreen but we log it
-      // (browsers don't allow preventDefault on Escape for fullscreen)
-      if (e.key === "Escape") {
-        // Mark as NOT a click-caused exit so fullscreenchange counts it
-        lastClickTimeRef.current = 0;
-      }
-
-      // Block F11 (toggle fullscreen)
+      // Block F11 toggle
       if (e.key === "F11") {
         e.preventDefault();
-        lastClickTimeRef.current = 0;
+        return;
       }
 
       // Block devtools for all levels
@@ -156,7 +136,7 @@ export function useCheatPrevention({
       if (document.hidden) logEvent("tab_switch");
     };
 
-    // ── Window resize — split-screen (debounced, ignores fullscreen resize) ──
+    // ── Window resize — split-screen (debounced) ─────────────────────────────
     const onResize = () => {
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       resizeTimer.current = setTimeout(() => {
@@ -198,7 +178,6 @@ export function useCheatPrevention({
     activityEvents.forEach((ev) => document.addEventListener(ev, resetInactivity));
     resetInactivity();
 
-    document.addEventListener("mousedown", onMouseDown, true);
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("keydown", onKeyDown, true);
@@ -211,7 +190,6 @@ export function useCheatPrevention({
       clearTimeout(graceTimer);
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
-      document.removeEventListener("mousedown", onMouseDown, true);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("keydown", onKeyDown, true);
