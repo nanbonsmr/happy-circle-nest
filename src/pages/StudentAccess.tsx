@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { User, Mail, KeyRound, AlertCircle } from "lucide-react";
+import { User, Mail, KeyRound, AlertCircle, BookOpen, ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +20,24 @@ const StudentAccess = () => {
   const [examTitle, setExamTitle] = useState("");
   const [examNotFound, setExamNotFound] = useState(false);
   const [checkingExam, setCheckingExam] = useState(true);
+  
+  // New: if no access code in URL, ask for it
+  const [manualCode, setManualCode] = useState("");
+  const needsCode = !accessCode || accessCode === "undefined";
 
   // Validate access code on mount
   useEffect(() => {
+    if (needsCode) {
+      setCheckingExam(false);
+      return;
+    }
     const checkExam = async () => {
       const { data, error } = await supabase
         .from("exams")
         .select("id, title, status")
         .eq("access_code", accessCode || "")
         .in("status", ["published", "active"])
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         setExamNotFound(true);
@@ -39,7 +47,14 @@ const StudentAccess = () => {
       setCheckingExam(false);
     };
     checkExam();
-  }, [accessCode]);
+  }, [accessCode, needsCode]);
+
+  const handleCodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim()) {
+      navigate(`/exam/${manualCode.trim()}`);
+    }
+  };
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,17 +65,15 @@ const StudentAccess = () => {
     setLoading(true);
 
     try {
-      // Get exam
       const { data: exam, error: examError } = await supabase
         .from("exams")
         .select("id, status, max_participants")
         .eq("access_code", accessCode || "")
         .in("status", ["published", "active"])
-        .single();
+        .maybeSingle();
 
       if (examError || !exam) throw new Error("Exam not found or not available.");
 
-      // Check participant limit
       if (exam.max_participants) {
         const { count } = await supabase
           .from("exam_sessions")
@@ -71,20 +84,18 @@ const StudentAccess = () => {
         }
       }
 
-      // Check if student already joined
       const { data: existing } = await supabase
         .from("exam_sessions")
         .select("id")
         .eq("exam_id", exam.id)
         .eq("student_email", email.trim())
-        .single();
+        .maybeSingle();
 
       let sessionId: string;
 
       if (existing) {
         sessionId = existing.id;
       } else {
-        // Create session
         const { data: session, error: sessionError } = await supabase
           .from("exam_sessions")
           .insert({
@@ -100,7 +111,6 @@ const StudentAccess = () => {
         sessionId = session.id;
       }
 
-      // Store in sessionStorage
       sessionStorage.setItem("session_id", sessionId);
       sessionStorage.setItem("student_name", fullName.trim());
       sessionStorage.setItem("student_email", email.trim());
@@ -122,16 +132,51 @@ const StudentAccess = () => {
     );
   }
 
-  if (examNotFound) {
+  // If no access code or exam not found, show code entry screen
+  if (needsCode || examNotFound) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <Card className="w-full max-w-md border-border/50 shadow-xl">
-          <CardContent className="pt-8 pb-6 text-center">
-            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-            <h2 className="text-xl font-bold mb-2">Exam Not Found</h2>
-            <p className="text-muted-foreground">This exam link is invalid or the exam is no longer available.</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex flex-col bg-[hsl(210,29%,15%)]">
+        {/* Header */}
+        <div className="flex items-center justify-center py-6">
+          <img src={logo} alt="NejoExamPrep Logo" className="h-10 w-10 rounded-full object-cover mr-2" />
+          <span className="text-xl font-bold text-white">NejoExamPrep</span>
+        </div>
+
+        {/* Center card */}
+        <div className="flex-1 flex items-center justify-center p-6">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="w-full max-w-md">
+            <Card className="border-border/50 shadow-2xl">
+              <CardContent className="pt-8 pb-8">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-[hsl(210,29%,24%)] flex items-center justify-center">
+                    <BookOpen className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold">Student</h2>
+                  {examNotFound && (
+                    <p className="text-sm text-destructive mt-2 flex items-center justify-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      Invalid code. Please try again.
+                    </p>
+                  )}
+                </div>
+                <form onSubmit={handleCodeSubmit} className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter exam key"
+                      value={manualCode}
+                      onChange={(e) => setManualCode(e.target.value)}
+                      className="h-12 text-base flex-1"
+                      autoFocus
+                    />
+                    <Button type="submit" className="h-12 px-6 bg-[hsl(210,29%,24%)] text-white hover:bg-[hsl(210,29%,20%)] font-semibold">
+                      Next
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
       </div>
     );
   }
