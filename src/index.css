@@ -107,7 +107,10 @@
   }
 }
 
-@layer utilities {
+.exam-fullscreen {
+  user-select: none;
+  -webkit-user-select: none;
+}
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-lg;
   }
@@ -123,4 +126,9 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+}
+
+.exam-fullscreen {
+  user-select: none;
+  -webkit-user-select: none;
 }
