@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FileText, BarChart3, Settings,
-  Users, Activity, TrendingUp, Loader2,
+  Users, Activity, Loader2,
   Play, Pencil, Trash2, Mail, LogOut, Plus, Eye,
+  Search, Download, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
+import { useExamAutoStatus } from "@/hooks/useExamAutoStatus";
+import { useReportFilters } from "@/hooks/useReportFilters";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Exam = Tables<"exams">;
@@ -22,9 +25,9 @@ type ActiveTab = "dashboard" | "exams" | "reports" | "settings";
 interface SessionCounts { total: number; waiting: number; in_progress: number; submitted: number; }
 interface StudentReport {
   sessionId: string; studentName: string; studentEmail: string;
-  examTitle: string; examSubject: string; score: number | null;
+  examId: string; examTitle: string; examSubject: string; score: number | null;
   totalMarks: number | null; status: string; submittedAt: string | null;
-  correct: number; incorrect: number; totalQuestions: number;
+  correct: number; incorrect: number; totalQuestions: number; unanswered: number;
   percentage: number | null; tabSwitches: number; fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High";
 }
@@ -101,6 +104,23 @@ const TeacherDashboard = () => {
     return () => { supabase.removeChannel(ch); };
   }, [exams, loadCounts]);
 
+  // Real-time exam status updates (e.g. another teacher starts an exam)
+  useEffect(() => {
+    if (!userId) return;
+    const ch = supabase.channel("t-exams-rt")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams", filter: `teacher_id=eq.${userId}` },
+        (payload) => {
+          setExams((prev) => prev.map((e) => e.id === payload.new.id ? { ...e, ...(payload.new as Exam) } : e));
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId]);
+
+  // Auto-close exams when time expires
+  useExamAutoStatus(exams, (examId, newStatus) => {
+    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
+  });
+
   useEffect(() => {
     if (activeTab === "reports" && exams.length > 0 && reports.length === 0) loadReports();
   }, [activeTab, exams]);
@@ -132,7 +152,7 @@ const TeacherDashboard = () => {
         const suspiciousScore: "Low" | "Medium" | "High" = logs.length >= 8 ? "High" : logs.length >= 3 ? "Medium" : "Low";
         return {
           sessionId: s.id, studentName: s.student_name, studentEmail: s.student_email,
-          examTitle: exam?.title || "Unknown", examSubject: exam?.subject || "",
+          examId: s.exam_id, examTitle: exam?.title || "Unknown", examSubject: exam?.subject || "",
           score: s.score, totalMarks: s.total_marks, status: s.status,
           submittedAt: s.submitted_at, correct, incorrect,
           unanswered: totalQ - answered, totalQuestions: totalQ,
@@ -219,6 +239,12 @@ const TeacherDashboard = () => {
   const activeExams = exams.filter((e) => e.status === "active").length;
   const submitted = reports.filter((r) => r.percentage !== null);
   const avgScore = submitted.length > 0 ? Math.round(submitted.reduce((a, r) => a + (r.percentage || 0), 0) / submitted.length) : 0;
+
+  // Report filters
+  const {
+    examFilter, setExamFilter, search, setSearch,
+    sortField, sortAsc, toggleSort, filtered: filteredReports, exportXLSX,
+  } = useReportFilters(reports);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", tab: "dashboard" },
@@ -373,41 +399,76 @@ const TeacherDashboard = () => {
 
       {activeTab === "reports" && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-[#1e3a5f]">Student Reports</h2>
-            <button type="button" onClick={loadReports} disabled={reportsLoading} className="text-xs text-[#1a8fe3] hover:underline font-medium">{reportsLoading ? "Loading..." : "Refresh"}</button>
+          {/* Toolbar */}
+          <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[#1e3a5f]">Student Reports</h2>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={loadReports} disabled={reportsLoading} className="text-xs text-[#1a8fe3] hover:underline font-medium">{reportsLoading ? "Loading..." : "Refresh"}</button>
+                <button type="button" onClick={() => exportXLSX("reports.xlsx")} disabled={!filteredReports.length}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
+                  <Download className="h-3.5 w-3.5" /> Export
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {/* Exam filter */}
+              <select value={examFilter} onChange={(e) => setExamFilter(e.target.value)}
+                title="Filter by exam"
+                aria-label="Filter by exam"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:border-[#1a8fe3]">
+                <option value="all">All Exams</option>
+                {exams.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}
+              </select>
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input type="text" placeholder="Search student name or email..." value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" />
+              </div>
+            </div>
           </div>
+
           {reportsLoading ? (
             <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#1a8fe3]" /></div>
-          ) : reports.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">No submissions yet.</div>
+          ) : filteredReports.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              {reports.length === 0 ? "No submissions yet." : "No results match your filters."}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-5 py-3 font-semibold">Student</th>
+                    <th className="text-left px-5 py-3 font-semibold">Rank</th>
+                    <th className="text-left px-4 py-3 font-semibold cursor-pointer select-none" onClick={() => toggleSort("studentName")}>
+                      <span className="flex items-center gap-1">Student {sortField === "studentName" ? (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}</span>
+                    </th>
                     <th className="text-left px-4 py-3 font-semibold">Exam</th>
-                    <th className="text-center px-4 py-3 font-semibold">Score</th>
+                    <th className="text-center px-4 py-3 font-semibold cursor-pointer select-none" onClick={() => toggleSort("percentage")}>
+                      <span className="flex items-center gap-1 justify-center">Score {sortField === "percentage" ? (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}</span>
+                    </th>
                     <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-center px-4 py-3 font-semibold">Risk</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reports.map((r) => (
-                    <tr key={r.sessionId} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
-                      <td className="px-5 py-3.5"><p className="font-semibold text-[#1e3a5f]">{r.studentName}</p><p className="text-xs text-slate-400">{r.studentEmail}</p></td>
+                  {filteredReports.map((r, i) => (
+                    <tr key={r.sessionId} className={`border-t border-slate-50 hover:bg-slate-50/70 transition-colors ${i === 0 ? "bg-amber-50/40" : i === 1 ? "bg-slate-50/60" : i === 2 ? "bg-orange-50/30" : ""}`}>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-200 text-amber-700" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-orange-200 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
+                      </td>
+                      <td className="px-4 py-3.5"><p className="font-semibold text-[#1e3a5f]">{r.studentName}</p><p className="text-xs text-slate-400">{r.studentEmail}</p></td>
                       <td className="px-4 py-3.5"><p className="font-medium text-slate-700">{r.examTitle}</p><p className="text-xs text-slate-400">{r.examSubject}</p></td>
                       <td className="px-4 py-3.5 text-center">
                         <span className={`text-base font-bold ${r.percentage !== null && r.percentage >= 70 ? "text-green-600" : r.percentage !== null && r.percentage >= 40 ? "text-amber-500" : "text-red-500"}`}>{r.percentage !== null ? `${r.percentage}%` : "—"}</span>
+                        <p className="text-xs text-slate-400">{r.correct}/{r.totalQuestions}</p>
                       </td>
-                      <td className="px-4 py-3.5"><div className="w-20 mx-auto"><Progress value={r.percentage ?? 0} className="h-1.5" /><p className="text-xs text-slate-400 text-center mt-1">{r.correct}/{r.totalQuestions}</p></div></td>
+                      <td className="px-4 py-3.5"><div className="w-20 mx-auto"><Progress value={r.percentage ?? 0} className="h-1.5" /></div></td>
                       <td className="px-4 py-3.5 text-center">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>{r.suspiciousScore}</span>
-                        <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t·{r.fullscreenExits}fs</p>
                       </td>
-                      <td className="px-4 py-3.5"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{r.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
