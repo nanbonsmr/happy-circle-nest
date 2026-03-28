@@ -353,11 +353,17 @@ const ExamPage = () => {
               type="button"
               className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base"
               onClick={() => {
+                // Enter real fullscreen for the visual effect, then hand off to CSS overlay
                 document.documentElement
                   .requestFullscreen({ navigationUI: "hide" })
-                  .then(() => setFullscreenReady(true))
-                  .catch(() => {
-                    // Fullscreen denied (e.g. mobile) — proceed anyway
+                  .catch(() => {})
+                  .finally(() => {
+                    // Exit browser fullscreen immediately — CSS overlay takes over.
+                    // This means clicking answers can NEVER exit fullscreen
+                    // because there is no browser fullscreen state to exit.
+                    if (document.fullscreenElement) {
+                      document.exitFullscreen().catch(() => {});
+                    }
                     setFullscreenReady(true);
                   });
               }}
