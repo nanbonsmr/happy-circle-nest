@@ -33,6 +33,7 @@ const ExamPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [examId, setExamId] = useState("");
   const [sessionId, setSessionId] = useState("");
+  const [examEnded, setExamEnded] = useState(false);
 
   const totalQuestions = questions.length;
   const progress = totalQuestions > 0 ? ((currentQuestion + 1) / totalQuestions) * 100 : 0;
@@ -46,7 +47,7 @@ const ExamPage = () => {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
     setSubmitting(true);
 
@@ -54,7 +55,6 @@ const ExamPage = () => {
       const sid = sessionStorage.getItem("session_id") || sessionId;
       if (!sid) throw new Error("Session not found");
 
-      // Save all answers with correctness
       const { data: dbQuestions } = await supabase
         .from("questions")
         .select("id, correct_answer")
@@ -62,7 +62,6 @@ const ExamPage = () => {
 
       const correctMap = new Map((dbQuestions || []).map((q) => [q.id, q.correct_answer]));
 
-      // Upsert all answers
       const answersToUpsert = Object.entries(answers).map(([questionId, selectedAnswer]) => ({
         session_id: sid,
         question_id: questionId,
@@ -75,8 +74,6 @@ const ExamPage = () => {
         if (ansError) throw ansError;
       }
 
-      // Calculate score
-      const score = answersToUpsert.filter((a) => a.is_correct).length;
       const totalMarks = questions.reduce((s, q) => s + q.marks, 0);
       const earnedMarks = answersToUpsert
         .filter((a) => a.is_correct)
@@ -85,7 +82,6 @@ const ExamPage = () => {
           return s + (q?.marks || 0);
         }, 0);
 
-      // Update session
       const { error: sessionError } = await supabase
         .from("exam_sessions")
         .update({
@@ -98,17 +94,17 @@ const ExamPage = () => {
 
       if (sessionError) throw sessionError;
 
-      sessionStorage.setItem("exam_score", String(earnedMarks));
-      sessionStorage.setItem("exam_total", String(totalMarks));
-      sessionStorage.setItem("exam_correct", String(score));
-      sessionStorage.setItem("exam_total_questions", String(totalQuestions));
-
-      navigate(`/exam/${accessCode}/complete`);
+      // Don't store scores in sessionStorage - teacher sends results
+      if (isAutoSubmit) {
+        setExamEnded(true);
+      } else {
+        navigate(`/exam/${accessCode}/complete`);
+      }
     } catch (error: any) {
       toast({ title: "Error submitting", description: error.message, variant: "destructive" });
       setSubmitting(false);
     }
-  }, [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast, totalQuestions]);
+  }, [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast]);
 
   // Load exam and questions
   useEffect(() => {
@@ -121,22 +117,28 @@ const ExamPage = () => {
         .from("exams")
         .select("id, duration_minutes, started_at, status")
         .eq("access_code", accessCode || "")
-        .single();
+        .maybeSingle();
 
       if (!exam || exam.status !== "active") {
-        navigate(`/exam/${accessCode}`);
+        setExamEnded(true);
+        setLoading(false);
         return;
       }
 
       setExamId(exam.id);
 
-      // Calculate remaining time
       const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
       const endTime = startedAt + exam.duration_minutes * 60 * 1000;
       const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      
+      if (remaining <= 0) {
+        setExamEnded(true);
+        setLoading(false);
+        return;
+      }
+      
       setTimeLeft(remaining);
 
-      // Load questions
       const { data: qs } = await supabase
         .from("questions")
         .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order")
@@ -145,7 +147,6 @@ const ExamPage = () => {
 
       setQuestions(qs || []);
 
-      // Load existing answers
       const { data: existingAnswers } = await supabase
         .from("student_answers")
         .select("question_id, selected_answer")
@@ -164,19 +165,19 @@ const ExamPage = () => {
 
   // Timer
   useEffect(() => {
-    if (loading || timeLeft <= 0) return;
+    if (loading || timeLeft <= 0 || examEnded) return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleSubmit();
+          handleSubmit(true);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [loading, handleSubmit, timeLeft]);
+  }, [loading, handleSubmit, timeLeft, examEnded]);
 
   // Auto-save answer
   const saveAnswer = async (questionId: string, selectedAnswer: string) => {
@@ -190,6 +191,30 @@ const ExamPage = () => {
       { onConflict: "session_id,question_id" }
     );
   };
+
+  // Show exam ended screen
+  if (examEnded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md text-center">
+          <Card className="border-border/50 shadow-xl">
+            <CardContent className="pt-10 pb-8">
+              <div className="mx-auto mb-6 h-20 w-20 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="h-10 w-10 text-amber-600" />
+              </div>
+              <h1 className="text-2xl font-bold mb-2">Exam Completed</h1>
+              <p className="text-muted-foreground mb-6">
+                The exam time has ended and your answers have been submitted automatically. Your teacher will send you the results via email.
+              </p>
+              <Button onClick={() => navigate("/")} variant="outline" className="gap-2">
+                Back to Home
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -287,7 +312,7 @@ const ExamPage = () => {
             <ChevronLeft className="h-4 w-4" /> Previous
           </Button>
           {isLastQuestion ? (
-            <Button onClick={handleSubmit} disabled={!allAnswered || submitting} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
+            <Button onClick={() => handleSubmit(false)} disabled={!allAnswered || submitting} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? "Submitting..." : "Submit Exam"}
             </Button>
