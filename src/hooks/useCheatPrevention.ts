@@ -83,6 +83,19 @@ export function useCheatPrevention({
       if (document.hidden) logEvent("tab_switch");
     };
 
+    // ── Fullscreen exit — count as violation ─────────────────────────────────
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        logEvent("fullscreen_exit", "Exited fullscreen");
+        // Re-enter after a short delay
+        setTimeout(() => {
+          document.documentElement
+            .requestFullscreen({ navigationUI: "hide" })
+            .catch(() => {});
+        }, 400);
+      }
+    };
+
     // ── Escape key — count as fullscreen_exit violation ──────────────────────
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -161,6 +174,7 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu, true);
@@ -172,6 +186,7 @@ export function useCheatPrevention({
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu, true);
@@ -181,6 +196,7 @@ export function useCheatPrevention({
         document.removeEventListener(ev, resetInactivity)
       );
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     };
   }, [enabled, securityLevel, logEvent, resetInactivity, requestFullscreen]);
 
