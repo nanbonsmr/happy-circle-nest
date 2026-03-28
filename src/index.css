@@ -115,10 +115,10 @@
     @apply bg-card/60 backdrop-blur-md border border-border/30;
   }
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(234, 89%, 63%), hsl(270, 76%, 60%));
+    background: linear-gradient(135deg, #1e3a5f, #1a4a7a);
   }
   .gradient-text {
-    background: linear-gradient(135deg, hsl(234, 89%, 63%), hsl(270, 76%, 60%));
+    background: linear-gradient(135deg, #1e3a5f, #1a4a7a);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
