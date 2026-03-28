@@ -2,23 +2,16 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  BookOpen, ArrowLeft, ArrowRight, Check, Plus, Trash2, Copy, ExternalLink, Users,
+  ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Users,
   ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-
-interface Question {
-  id: string;
-  text: string;
-  options: string[];
-  correctAnswer: string;
-}
+import { ExamBlockEditor, newBlock, type ExamBlock } from "@/components/ExamBlockEditor";
 
 const steps = ["Exam Details", "Add Questions", "Review & Publish"];
 
@@ -36,10 +29,8 @@ const CreateExam = () => {
   const [accessCode, setAccessCode] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
   const [securityLevel, setSecurityLevel] = useState<"low" | "high">("low");
 
-  // Step 2
-  const [questions, setQuestions] = useState<Question[]>([
-    { id: "1", text: "", options: ["", "", "", ""], correctAnswer: "" },
-  ]);
+  // Step 2 — block-based editor
+  const [blocks, setBlocks] = useState<ExamBlock[]>([newBlock()]);
 
   // Check auth
   useEffect(() => {
@@ -47,29 +38,6 @@ const CreateExam = () => {
       if (!session) navigate("/login");
     });
   }, [navigate]);
-
-  const addQuestion = () => {
-    setQuestions((prev) => [
-      ...prev,
-      { id: String(Date.now()), text: "", options: ["", "", "", ""], correctAnswer: "" },
-    ]);
-  };
-
-  const removeQuestion = (id: string) => {
-    if (questions.length > 1) setQuestions((prev) => prev.filter((q) => q.id !== id));
-  };
-
-  const updateQuestion = (id: string, field: string, value: any) => {
-    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, [field]: value } : q)));
-  };
-
-  const updateOption = (qId: string, optIndex: number, value: string) => {
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === qId ? { ...q, options: q.options.map((o, i) => (i === optIndex ? value : o)) } : q
-      )
-    );
-  };
 
   const generateUniqueCode = () => {
     const ts = Date.now().toString(36).toUpperCase();
@@ -84,20 +52,17 @@ const CreateExam = () => {
       if (!user) throw new Error("Not authenticated");
 
       if (!title.trim()) throw new Error("Exam title is required");
-      if (questions.some((q) => !q.text.trim())) throw new Error("All questions must have text");
-      if (questions.some((q) => !q.correctAnswer)) throw new Error("All questions must have a correct answer");
-      if (questions.some((q) => q.options.some((o) => !o.trim()))) throw new Error("All options must be filled");
+
+      // Validate all blocks have at least one question with text
+      const allQuestions = blocks.flatMap((b) => b.questions);
+      if (allQuestions.length === 0) throw new Error("Add at least one question");
+      if (allQuestions.some((q) => !q.text.trim())) throw new Error("All questions must have text");
+      if (allQuestions.some((q) => !q.correctAnswer)) throw new Error("All questions must have a correct answer");
+      if (allQuestions.some((q) => q.options.some((o) => !o.trim()))) throw new Error("All options must be filled");
 
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
-      if (existing) {
-        code = generateUniqueCode();
-        setAccessCode(code);
-      }
-
-      // Try inserting with security_level; fall back without it if column doesn't exist yet
-      let exam: any = null;
-      let examError: any = null;
+      if (existing) { code = generateUniqueCode(); setAccessCode(code); }
 
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
@@ -111,31 +76,42 @@ const CreateExam = () => {
       };
 
       const result = await supabase.from("exams").insert(insertPayload as any).select().single();
-      exam = result.data;
-      examError = result.error;
+      let exam = result.data;
+      let examError = result.error;
 
-      // If security_level column doesn't exist yet, retry without it
       if (examError && examError.message?.includes("security_level")) {
         const { security_level: _sl, ...payloadWithout } = insertPayload;
         const retry = await supabase.from("exams").insert(payloadWithout as any).select().single();
         exam = retry.data;
         examError = retry.error;
       }
-
       if (examError) throw examError;
 
-      // Each question = 1 mark (percentage based: score = correct/total * 100)
-      const questionsToInsert = questions.map((q, i) => ({
-        exam_id: exam.id,
-        question_text: q.text.trim(),
-        option_a: q.options[0].trim(),
-        option_b: q.options[1].trim(),
-        option_c: q.options[2].trim(),
-        option_d: q.options[3].trim(),
-        correct_answer: q.correctAnswer,
-        marks: 1,
-        question_order: i,
-      }));
+      // Flatten blocks into questions rows, carrying block metadata on first question of each block
+      let globalOrder = 0;
+      const questionsToInsert: any[] = [];
+      blocks.forEach((block, bi) => {
+        block.questions.forEach((q, qi) => {
+          questionsToInsert.push({
+            exam_id: exam.id,
+            question_text: q.text.trim(),
+            option_a: q.options[0].trim(),
+            option_b: q.options[1].trim(),
+            option_c: q.options[2].trim(),
+            option_d: q.options[3].trim(),
+            correct_answer: q.correctAnswer,
+            marks: 1,
+            question_order: globalOrder++,
+            block_id: block.id,
+            block_order: bi,
+            // Only store block context on the first question of each block
+            instructions: qi === 0 ? block.instructions || null : null,
+            paragraph: qi === 0 ? block.paragraph || null : null,
+            image_url: qi === 0 ? block.imageUrl || null : null,
+            image_caption: qi === 0 ? block.imageCaption || null : null,
+          });
+        });
+      });
 
       const { error: qError } = await supabase.from("questions").insert(questionsToInsert);
       if (qError) throw qError;
@@ -273,45 +249,11 @@ const CreateExam = () => {
 
         {/* Step 2 */}
         {step === 1 && (
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-            {questions.map((q, qi) => (
-              <Card key={q.id} className="border-border/50 shadow-lg">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-base">Question {qi + 1}</CardTitle>
-                  <Button variant="ghost" size="icon" onClick={() => removeQuestion(q.id)} disabled={questions.length <= 1}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Question Text</Label>
-                    <Input placeholder="Enter the question" value={q.text} onChange={(e) => updateQuestion(q.id, "text", e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {q.options.map((opt, oi) => (
-                      <div key={oi} className="space-y-1">
-                        <Label className="text-xs">Option {String.fromCharCode(65 + oi)}</Label>
-                        <Input placeholder={`Option ${String.fromCharCode(65 + oi)}`} value={opt} onChange={(e) => updateOption(q.id, oi, e.target.value)} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Correct Answer</Label>
-                    <RadioGroup value={q.correctAnswer} onValueChange={(v) => updateQuestion(q.id, "correctAnswer", v)} className="flex gap-4">
-                      {["A", "B", "C", "D"].map((l) => (
-                        <div key={l} className="flex items-center gap-1.5">
-                          <RadioGroupItem value={l} id={`${q.id}-${l}`} />
-                          <Label htmlFor={`${q.id}-${l}`} className="text-sm">{l}</Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            <Button variant="outline" onClick={addQuestion} className="w-full gap-2 border-dashed">
-              <Plus className="h-4 w-4" /> Add Question
-            </Button>
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <p className="text-sm text-muted-foreground mb-4">
+              Build your exam using sections. Each section can have instructions, a reading passage, an image, and multiple questions.
+            </p>
+            <ExamBlockEditor blocks={blocks} onChange={setBlocks} />
           </motion.div>
         )}
 
@@ -328,7 +270,7 @@ const CreateExam = () => {
                   <div><span className="text-muted-foreground">Title:</span> <strong>{title || "—"}</strong></div>
                   <div><span className="text-muted-foreground">Subject:</span> <strong>{subject || "—"}</strong></div>
                   <div><span className="text-muted-foreground">Duration:</span> <strong>{duration} min</strong></div>
-                  <div><span className="text-muted-foreground">Questions:</span> <strong>{questions.length}</strong></div>
+                  <div><span className="text-muted-foreground">Questions:</span> <strong>{blocks.flatMap(b => b.questions).length} across {blocks.length} section{blocks.length !== 1 ? "s" : ""}</strong></div>
                   <div><span className="text-muted-foreground">Max Students:</span> <strong>{maxParticipants || "Unlimited"}</strong></div>
                   <div><span className="text-muted-foreground">Scoring:</span> <strong>Percentage (%)</strong></div>
                   <div className="col-span-2 flex items-center gap-2">
@@ -360,19 +302,42 @@ const CreateExam = () => {
 
             {/* Questions preview */}
             <Card className="border-border/50 shadow-xl">
-              <CardHeader><CardTitle className="text-base">Questions Preview</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {questions.map((q, i) => (
-                  <div key={q.id} className="p-3 rounded-lg bg-muted/50 text-sm">
-                    <p className="font-medium">{i + 1}. {q.text || "—"}</p>
-                    <div className="mt-1 grid grid-cols-2 gap-1 text-muted-foreground text-xs">
-                      {q.options.map((o, oi) => (
-                        <span key={oi} className={q.correctAnswer === String.fromCharCode(65 + oi) ? "text-success font-medium" : ""}>
-                          {String.fromCharCode(65 + oi)}. {o || "—"}
-                        </span>
+              <CardHeader><CardTitle className="text-base">Sections Preview</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {blocks.map((block, bi) => (
+                  <div key={block.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-[#1e3a5f] text-white text-xs font-semibold">
+                      Section {bi + 1} — {block.questions.length} question{block.questions.length !== 1 ? "s" : ""}
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {block.instructions && (
+                        <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+                          📌 {block.instructions.slice(0, 80)}{block.instructions.length > 80 ? "…" : ""}
+                        </div>
+                      )}
+                      {block.paragraph && (
+                        <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-blue-800">
+                          📄 {block.paragraph.slice(0, 80)}{block.paragraph.length > 80 ? "…" : ""}
+                        </div>
+                      )}
+                      {block.imageUrl && (
+                        <div className="text-xs text-slate-500 flex items-center gap-1">
+                          🖼️ Image attached{block.imageCaption ? `: ${block.imageCaption}` : ""}
+                        </div>
+                      )}
+                      {block.questions.map((q, qi) => (
+                        <div key={q.id} className="text-sm bg-slate-50 rounded-lg p-2">
+                          <p className="font-medium text-slate-700">{qi + 1}. {q.text || "—"}</p>
+                          <div className="grid grid-cols-2 gap-1 mt-1 text-xs text-slate-500">
+                            {q.options.map((o, oi) => (
+                              <span key={oi} className={q.correctAnswer === String.fromCharCode(65 + oi) ? "text-green-600 font-semibold" : ""}>
+                                {String.fromCharCode(65 + oi)}. {o || "—"}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Correct: {q.correctAnswer || "—"}</p>
                   </div>
                 ))}
               </CardContent>

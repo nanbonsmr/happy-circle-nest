@@ -21,6 +21,12 @@ interface Question {
   option_d: string;
   marks: number;
   question_order: number;
+  block_id: string | null;
+  block_order: number;
+  instructions: string | null;
+  paragraph: string | null;
+  image_url: string | null;
+  image_caption: string | null;
 }
 
 const MAX_VIOLATIONS = 3;
@@ -235,7 +241,7 @@ const ExamPage = () => {
 
       const { data: qs } = await supabase
         .from("questions")
-        .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order")
+        .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
         .eq("exam_id", exam.id).order("question_order");
       setQuestions(qs || []);
 
@@ -445,6 +451,35 @@ const ExamPage = () => {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.25 }}
             >
+              {/* Block context — instructions, paragraph, image (shown when present) */}
+              {(q.instructions || q.paragraph || q.image_url) && (
+                <div className="mb-4 space-y-3">
+                  {q.instructions && (
+                    <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <span className="text-lg shrink-0">📌</span>
+                      <p className="text-sm text-amber-800 whitespace-pre-wrap">{q.instructions}</p>
+                    </div>
+                  )}
+                  {q.paragraph && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Read carefully</span>
+                      </div>
+                      <p className="text-sm text-blue-900 whitespace-pre-wrap leading-relaxed">{q.paragraph}</p>
+                    </div>
+                  )}
+                  {q.image_url && (
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                      <img src={q.image_url} alt={q.image_caption || "Exam image"}
+                        className="w-full max-h-56 object-contain bg-slate-50" />
+                      {q.image_caption && (
+                        <p className="text-xs text-slate-500 text-center py-2 italic">{q.image_caption}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Card className="border-slate-200 shadow-xl bg-white">
                 <CardContent className="pt-8 pb-6">
                   <div className="mb-2 flex items-center justify-between">
