@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, FileText, BarChart3, Settings,
   LayoutDashboard, UserPlus, TrendingUp, Activity, Loader2,
-  Trash2, ChevronDown, ChevronUp, Pencil, Download,
+  Trash2, ChevronDown, ChevronUp, Pencil, Download, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
+import { useExamAutoStatus } from "@/hooks/useExamAutoStatus";
 import type { Tables } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 
 type Exam = Tables<"exams">;
 interface TeacherRow { id: string; full_name: string; email: string; examCount: number; studentCount: number; }
-interface SessionRow { id: string; student_name: string; student_email: string; score: number | null; total_marks: number | null; status: string; submitted_at: string | null; exam_title: string; exam_subject: string; }
+interface SessionRow { id: string; exam_id: string; student_name: string; student_email: string; score: number | null; total_marks: number | null; status: string; submitted_at: string | null; exam_title: string; exam_subject: string; }
 type Tab = "overview" | "teachers" | "exams" | "results" | "settings";
 
 const statusColors: Record<string, string> = {
@@ -47,6 +48,8 @@ const AdminDashboard = () => {
   const [deleteTeacher, setDeleteTeacher] = useState<TeacherRow | null>(null);
   const [sortField, setSortField] = useState<"score" | "student_name">("score");
   const [sortAsc, setSortAsc] = useState(false);
+  const [resultSearch, setResultSearch] = useState("");
+  const [resultExamFilter, setResultExamFilter] = useState("all");
 
   useEffect(() => {
     const init = async () => {
@@ -62,6 +65,21 @@ const AdminDashboard = () => {
     };
     init();
   }, [navigate]);
+
+  // Real-time: refresh when sessions or exams change
+  useEffect(() => {
+    const ch = supabase.channel("admin-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions" }, () => loadData())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams" }, () => loadData())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // Auto-close exams when time expires
+  useExamAutoStatus(exams, (examId, newStatus) => {
+    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
+    if (newStatus === "completed") setActiveExams((n) => Math.max(0, n - 1));
+  });
 
   const loadData = async () => {
     const { data: teacherRoles } = await supabase.from("user_roles").select("user_id").eq("role", "teacher");
@@ -123,6 +141,7 @@ const AdminDashboard = () => {
   };
 
   const handleExportResults = () => {
+    if (!sortedResults.length) return;
     const data = sortedResults.map((r, i) => ({ Rank: i + 1, Student: r.student_name, Email: r.student_email, Exam: r.exam_title, Subject: r.exam_subject, Score: r.score ?? 0, "Total Marks": r.total_marks ?? 0, "%": r.total_marks && r.total_marks > 0 ? Math.round(((r.score ?? 0) / r.total_marks) * 100) : 0, "Submitted At": r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—" }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -131,7 +150,15 @@ const AdminDashboard = () => {
     toast({ title: "Exported!" });
   };
 
-  const sortedResults = [...results].filter((r) => r.status === "submitted").sort((a, b) => {
+  const sortedResults = [...results].filter((r) => {
+    if (r.status !== "submitted") return false;
+    if (resultExamFilter !== "all" && r.exam_id !== resultExamFilter) return false;
+    if (resultSearch.trim()) {
+      const q = resultSearch.toLowerCase();
+      if (!r.student_name.toLowerCase().includes(q) && !r.student_email.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
     if (sortField === "score") return sortAsc ? (a.score ?? 0) - (b.score ?? 0) : (b.score ?? 0) - (a.score ?? 0);
     return sortAsc ? a.student_name.localeCompare(b.student_name) : b.student_name.localeCompare(a.student_name);
   });
@@ -321,11 +348,34 @@ const AdminDashboard = () => {
       {/* Results Tab */}
       {tab === "results" && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-[#1e3a5f]">Student Results ({sortedResults.length})</h2>
+          <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[#1e3a5f]">Student Results ({sortedResults.length})</h2>
+              <button type="button" onClick={handleExportResults} disabled={!sortedResults.length}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
+                <Download className="h-3.5 w-3.5" /> Export
+              </button>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select value={resultExamFilter} onChange={(e) => setResultExamFilter(e.target.value)}
+                title="Filter by exam"
+                aria-label="Filter by exam"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:border-[#1a8fe3]">
+                <option value="all">All Exams</option>
+                {exams.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}
+              </select>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input type="text" placeholder="Search student..." value={resultSearch}
+                  onChange={(e) => setResultSearch(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" />
+              </div>
+            </div>
           </div>
           {sortedResults.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">No submitted results yet.</div>
+            <div className="py-12 text-center text-slate-400 text-sm">
+              {results.filter((r) => r.status === "submitted").length === 0 ? "No submitted results yet." : "No results match your filters."}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -346,9 +396,9 @@ const AdminDashboard = () => {
                   {sortedResults.map((r, i) => {
                     const pct = r.total_marks && r.total_marks > 0 ? Math.round(((r.score ?? 0) / r.total_marks) * 100) : null;
                     return (
-                      <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                      <tr key={r.id} className={`border-t border-slate-50 hover:bg-slate-50/70 transition-colors ${i === 0 ? "bg-amber-50/40" : i === 1 ? "bg-slate-50/60" : i === 2 ? "bg-orange-50/30" : ""}`}>
                         <td className="px-5 py-3.5">
-                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-100 text-amber-600" : i === 1 ? "bg-slate-100 text-slate-600" : i === 2 ? "bg-orange-100 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
+                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-200 text-amber-700" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-orange-200 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
                         </td>
                         <td className="px-4 py-3.5">
                           <p className="font-semibold text-[#1e3a5f]">{r.student_name}</p>
