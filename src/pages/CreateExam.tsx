@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   BookOpen, ArrowLeft, ArrowRight, Check, Plus, Trash2, Copy, ExternalLink, Users,
+  ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ const CreateExam = () => {
   const [duration, setDuration] = useState("30");
   const [maxParticipants, setMaxParticipants] = useState("");
   const [accessCode, setAccessCode] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
+  const [securityLevel, setSecurityLevel] = useState<"low" | "high">("low");
 
   // Step 2
   const [questions, setQuestions] = useState<Question[]>([
@@ -103,6 +105,7 @@ const CreateExam = () => {
           access_code: code,
           status: "published",
           max_participants: maxParticipants ? parseInt(maxParticipants) : null,
+          security_level: securityLevel,
         })
         .select()
         .single();
@@ -214,6 +217,43 @@ const CreateExam = () => {
                   <p className="font-medium text-foreground mb-1">📊 Scoring: Percentage-based</p>
                   <p>Each question carries equal weight. Final score = (correct answers / total questions) × 100%</p>
                 </div>
+
+                {/* Security Level */}
+                <div className="space-y-2">
+                  <Label>Security Level</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSecurityLevel("low")}
+                      className={`flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all ${
+                        securityLevel === "low"
+                          ? "border-green-500 bg-green-50"
+                          : "border-border hover:border-green-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className={`h-4 w-4 ${securityLevel === "low" ? "text-green-600" : "text-muted-foreground"}`} />
+                        <span className="font-semibold text-sm">Standard</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Fullscreen + tab detection. Good for quizzes.</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSecurityLevel("high")}
+                      className={`flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all ${
+                        securityLevel === "high"
+                          ? "border-red-500 bg-red-50"
+                          : "border-border hover:border-red-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className={`h-4 w-4 ${securityLevel === "high" ? "text-red-600" : "text-muted-foreground"}`} />
+                        <span className="font-semibold text-sm">High Security</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Blocks copy/paste, shortcuts & right-click.</p>
+                    </button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -279,6 +319,13 @@ const CreateExam = () => {
                   <div><span className="text-muted-foreground">Questions:</span> <strong>{questions.length}</strong></div>
                   <div><span className="text-muted-foreground">Max Students:</span> <strong>{maxParticipants || "Unlimited"}</strong></div>
                   <div><span className="text-muted-foreground">Scoring:</span> <strong>Percentage (%)</strong></div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <span className="text-muted-foreground">Security:</span>
+                    <strong className={`flex items-center gap-1 ${securityLevel === "high" ? "text-red-600" : "text-green-700"}`}>
+                      {securityLevel === "high" ? <ShieldAlert className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      {securityLevel === "high" ? "High Security" : "Standard"}
+                    </strong>
+                  </div>
                   <div className="col-span-2"><span className="text-muted-foreground">Access Code:</span> <strong className="font-mono">{accessCode}</strong></div>
                 </div>
               </CardContent>
@@ -293,7 +340,7 @@ const CreateExam = () => {
                     <Copy className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="icon" asChild>
-                    <a href={examLink} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a>
+                    <a href={examLink} target="_blank" rel="noreferrer" title="Open exam link"><ExternalLink className="h-4 w-4" /></a>
                   </Button>
                 </div>
               </CardContent>

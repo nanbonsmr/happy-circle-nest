@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2,
+  ShieldAlert, ShieldCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -9,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
 
 interface Question {
   id: string;
@@ -20,6 +24,55 @@ interface Question {
   marks: number;
   question_order: number;
 }
+
+const EVENT_LABELS: Record<CheatEventType, string> = {
+  tab_switch: "Tab switched",
+  fullscreen_exit: "Fullscreen exited",
+  window_blur: "Window lost focus",
+  copy_attempt: "Copy blocked",
+  paste_attempt: "Paste blocked",
+  right_click: "Right-click blocked",
+  devtools_open: "DevTools detected",
+  inactivity: "Inactivity detected",
+  window_resize: "Window resized",
+  visibility_change: "Visibility changed",
+};
+
+const CheatWarningOverlay = ({
+  event, count, onDismiss, securityLevel,
+}: {
+  event: CheatEventType;
+  count: number;
+  onDismiss: () => void;
+  securityLevel: SecurityLevel;
+}) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+  >
+    <motion.div
+      initial={{ scale: 0.9, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.9, y: 20 }}
+      className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center"
+    >
+      <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-red-100 flex items-center justify-center">
+        <ShieldAlert className="h-7 w-7 text-red-600" />
+      </div>
+      <h3 className="text-lg font-bold text-[#0f172a] mb-1">Warning</h3>
+      <p className="text-slate-600 text-sm mb-1">{EVENT_LABELS[event]} detected.</p>
+      <p className="text-xs text-slate-400 mb-4">
+        This has been logged. Occurrence #{count}.
+        {securityLevel === "high" && " High-security exam — all violations are recorded."}
+      </p>
+      <Button type="button" onClick={onDismiss} className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl">
+        Return to Exam
+      </Button>
+    </motion.div>
+  </motion.div>
+);
 
 const ExamPage = () => {
   const { accessCode } = useParams();
@@ -34,6 +87,19 @@ const ExamPage = () => {
   const [examId, setExamId] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [examEnded, setExamEnded] = useState(false);
+  const [securityLevel, setSecurityLevel] = useState<SecurityLevel>("low");
+  const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; count: number } | null>(null);
+
+  const handleCheatWarning = useCallback((event: CheatEventType, count: number) => {
+    setActiveWarning({ event, count });
+  }, []);
+
+  const { requestFullscreen } = useCheatPrevention({
+    sessionId,
+    securityLevel,
+    onWarning: handleCheatWarning,
+    enabled: !loading && !examEnded && !!sessionId,
+  });
 
   const totalQuestions = questions.length;
   const progress = totalQuestions > 0 ? ((currentQuestion + 1) / totalQuestions) * 100 : 0;
@@ -50,15 +116,12 @@ const ExamPage = () => {
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
     setSubmitting(true);
-
     try {
       const sid = sessionStorage.getItem("session_id") || sessionId;
       if (!sid) throw new Error("Session not found");
 
       const { data: dbQuestions } = await supabase
-        .from("questions")
-        .select("id, correct_answer")
-        .eq("exam_id", examId);
+        .from("questions").select("id, correct_answer").eq("exam_id", examId);
 
       const correctMap = new Map((dbQuestions || []).map((q) => [q.id, q.correct_answer]));
 
@@ -70,7 +133,8 @@ const ExamPage = () => {
       }));
 
       if (answersToUpsert.length > 0) {
-        const { error: ansError } = await supabase.from("student_answers").upsert(answersToUpsert, { onConflict: "session_id,question_id" });
+        const { error: ansError } = await supabase
+          .from("student_answers").upsert(answersToUpsert, { onConflict: "session_id,question_id" });
         if (ansError) throw ansError;
       }
 
@@ -84,29 +148,17 @@ const ExamPage = () => {
 
       const { error: sessionError } = await supabase
         .from("exam_sessions")
-        .update({
-          status: "submitted",
-          submitted_at: new Date().toISOString(),
-          score: earnedMarks,
-          total_marks: totalMarks,
-        })
+        .update({ status: "submitted", submitted_at: new Date().toISOString(), score: earnedMarks, total_marks: totalMarks })
         .eq("id", sid);
-
       if (sessionError) throw sessionError;
 
-      // Don't store scores in sessionStorage - teacher sends results
-      if (isAutoSubmit) {
-        setExamEnded(true);
-      } else {
-        navigate(`/exam/${accessCode}/complete`);
-      }
+      if (isAutoSubmit) { setExamEnded(true); } else { navigate(`/exam/${accessCode}/complete`); }
     } catch (error: any) {
       toast({ title: "Error submitting", description: error.message, variant: "destructive" });
       setSubmitting(false);
     }
   }, [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast]);
 
-  // Load exam and questions
   useEffect(() => {
     const sid = sessionStorage.getItem("session_id");
     if (!sid) { navigate(`/exam/${accessCode}`); return; }
@@ -115,28 +167,20 @@ const ExamPage = () => {
     const loadExam = async () => {
       const { data: exam } = await supabase
         .from("exams")
-        .select("id, duration_minutes, started_at, status")
+        .select("id, duration_minutes, started_at, status, security_level")
         .eq("access_code", accessCode || "")
         .maybeSingle();
 
-      if (!exam || exam.status !== "active") {
-        setExamEnded(true);
-        setLoading(false);
-        return;
-      }
+      if (!exam || exam.status !== "active") { setExamEnded(true); setLoading(false); return; }
 
       setExamId(exam.id);
+      setSecurityLevel((exam.security_level as SecurityLevel) || "low");
 
       const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
       const endTime = startedAt + exam.duration_minutes * 60 * 1000;
       const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      
-      if (remaining <= 0) {
-        setExamEnded(true);
-        setLoading(false);
-        return;
-      }
-      
+
+      if (remaining <= 0) { setExamEnded(true); setLoading(false); return; }
       setTimeLeft(remaining);
 
       const { data: qs } = await supabase
@@ -144,55 +188,41 @@ const ExamPage = () => {
         .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order")
         .eq("exam_id", exam.id)
         .order("question_order");
-
       setQuestions(qs || []);
 
       const { data: existingAnswers } = await supabase
-        .from("student_answers")
-        .select("question_id, selected_answer")
-        .eq("session_id", sid);
-
+        .from("student_answers").select("question_id, selected_answer").eq("session_id", sid);
       if (existingAnswers) {
         const ansMap: Record<string, string> = {};
         existingAnswers.forEach((a) => { if (a.selected_answer) ansMap[a.question_id] = a.selected_answer; });
         setAnswers(ansMap);
       }
-
       setLoading(false);
     };
     loadExam();
   }, [accessCode, navigate]);
 
-  // Timer
   useEffect(() => {
     if (loading || timeLeft <= 0 || examEnded) return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit(true);
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(timer); handleSubmit(true); return 0; }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
   }, [loading, handleSubmit, timeLeft, examEnded]);
 
-  // Auto-save answer
   const saveAnswer = async (questionId: string, selectedAnswer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
-
     const sid = sessionStorage.getItem("session_id");
     if (!sid) return;
-
     await supabase.from("student_answers").upsert(
       { session_id: sid, question_id: questionId, selected_answer: selectedAnswer },
       { onConflict: "session_id,question_id" }
     );
   };
 
-  // Show exam ended screen
   if (examEnded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -206,9 +236,7 @@ const ExamPage = () => {
               <p className="text-muted-foreground mb-6">
                 The exam time has ended and your answers have been submitted automatically. Your teacher will send you the results via email.
               </p>
-              <Button onClick={() => navigate("/")} variant="outline" className="gap-2">
-                Back to Home
-              </Button>
+              <Button type="button" onClick={() => navigate("/")} variant="outline" className="gap-2">Back to Home</Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -246,7 +274,18 @@ const ExamPage = () => {
   const isTimeLow = timeLeft < 300;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background select-none">
+      <AnimatePresence>
+        {activeWarning && (
+          <CheatWarningOverlay
+            event={activeWarning.event}
+            count={activeWarning.count}
+            securityLevel={securityLevel}
+            onDismiss={() => { setActiveWarning(null); requestFullscreen(); }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Top bar */}
       <div className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container flex h-14 items-center justify-between">
@@ -256,9 +295,17 @@ const ExamPage = () => {
             </span>
             <Progress value={progress} className="w-32 h-2" />
           </div>
-          <div className={`flex items-center gap-2 font-mono text-lg font-bold ${isTimeLow ? "text-destructive animate-pulse" : "text-foreground"}`}>
-            <Clock className="h-4 w-4" />
-            {formatTime(timeLeft)}
+          <div className="flex items-center gap-3">
+            <div className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+              securityLevel === "high" ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"
+            }`}>
+              {securityLevel === "high" ? <ShieldAlert className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              {securityLevel === "high" ? "High Security" : "Standard"}
+            </div>
+            <div className={`flex items-center gap-2 font-mono text-lg font-bold ${isTimeLow ? "text-destructive animate-pulse" : "text-foreground"}`}>
+              <Clock className="h-4 w-4" />
+              {formatTime(timeLeft)}
+            </div>
           </div>
         </div>
       </div>
@@ -280,12 +327,7 @@ const ExamPage = () => {
                   <span className="text-xs text-muted-foreground">{answeredCount}/{totalQuestions} answered</span>
                 </div>
                 <h2 className="text-xl font-semibold mb-6 mt-4">{q.question_text}</h2>
-
-                <RadioGroup
-                  value={answers[q.id] || ""}
-                  onValueChange={(value) => saveAnswer(q.id, value)}
-                  className="space-y-3"
-                >
+                <RadioGroup value={answers[q.id] || ""} onValueChange={(value) => saveAnswer(q.id, value)} className="space-y-3">
                   {options.map((opt, i) => (
                     <motion.div key={opt.key} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                       <Label
@@ -306,18 +348,17 @@ const ExamPage = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation */}
         <div className="flex items-center justify-between mt-6">
-          <Button variant="outline" onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))} disabled={currentQuestion === 0} className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))} disabled={currentQuestion === 0} className="gap-2">
             <ChevronLeft className="h-4 w-4" /> Previous
           </Button>
           {isLastQuestion ? (
-            <Button onClick={() => handleSubmit(false)} disabled={!allAnswered || submitting} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
+            <Button type="button" onClick={() => handleSubmit(false)} disabled={!allAnswered || submitting} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? "Submitting..." : "Submit Exam"}
             </Button>
           ) : (
-            <Button onClick={() => setCurrentQuestion((p) => Math.min(totalQuestions - 1, p + 1))} className="gap-2">
+            <Button type="button" onClick={() => setCurrentQuestion((p) => Math.min(totalQuestions - 1, p + 1))} className="gap-2">
               Next <ChevronRight className="h-4 w-4" />
             </Button>
           )}
@@ -330,11 +371,11 @@ const ExamPage = () => {
           </div>
         )}
 
-        {/* Question indicators */}
         <div className="mt-8 flex flex-wrap gap-2 justify-center">
           {questions.map((qu, i) => (
             <button
               key={qu.id}
+              type="button"
               onClick={() => setCurrentQuestion(i)}
               className={`h-9 w-9 rounded-lg text-sm font-medium transition-all ${
                 i === currentQuestion
