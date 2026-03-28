@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      cheat_logs: {
+        Row: {
+          id: string
+          session_id: string
+          event_type: string
+          detail: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          event_type: string
+          detail?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          event_type?: string
+          detail?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cheat_logs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "exam_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exam_sessions: {
         Row: {
           created_at: string
@@ -69,6 +101,7 @@ export type Database = {
           duration_minutes: number
           id: string
           max_participants: number | null
+          security_level: string
           started_at: string | null
           status: string
           subject: string
@@ -83,6 +116,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          security_level?: string
           started_at?: string | null
           status?: string
           subject?: string
@@ -97,6 +131,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          security_level?: string
           started_at?: string | null
           status?: string
           subject?: string

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Plus, FileText, Users, BarChart3, LogOut,
   LayoutDashboard, Settings, Play, Loader2, Eye, Pencil, Trash2, X, Check, Mail,
-  Clock, TrendingUp, UserCheck, Activity,
+  Clock, TrendingUp, UserCheck, Activity, ShieldAlert,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,9 @@ interface StudentReport {
   unanswered: number;
   totalQuestions: number;
   percentage: number | null;
+  tabSwitches: number;
+  fullscreenExits: number;
+  suspiciousScore: "Low" | "Medium" | "High";
 }
 
 const TeacherDashboard = () => {
@@ -164,6 +167,12 @@ const TeacherDashboard = () => {
       const sessionIds = sessions.map((s) => s.id);
       const { data: answers } = await supabase.from("student_answers").select("*").in("session_id", sessionIds);
 
+      // Fetch cheat logs
+      const { data: cheatLogs } = await supabase
+        .from("cheat_logs")
+        .select("session_id, event_type")
+        .in("session_id", sessionIds);
+
       const examMap = Object.fromEntries(exams.map((e) => [e.id, e]));
       const questionsPerExam: Record<string, number> = {};
       (questions || []).forEach((q) => {
@@ -180,6 +189,13 @@ const TeacherDashboard = () => {
         const exam = examMap[session.exam_id];
         const percentage = totalQ > 0 ? Math.round((correct / totalQ) * 100) : null;
 
+        const sessionLogs = (cheatLogs || []).filter((l) => l.session_id === session.id);
+        const tabSwitches = sessionLogs.filter((l) => l.event_type === "tab_switch" || l.event_type === "window_blur").length;
+        const fullscreenExits = sessionLogs.filter((l) => l.event_type === "fullscreen_exit").length;
+        const totalViolations = sessionLogs.length;
+        const suspiciousScore: "Low" | "Medium" | "High" =
+          totalViolations >= 8 ? "High" : totalViolations >= 3 ? "Medium" : "Low";
+
         return {
           sessionId: session.id,
           studentName: session.student_name,
@@ -195,6 +211,9 @@ const TeacherDashboard = () => {
           unanswered,
           totalQuestions: totalQ,
           percentage,
+          tabSwitches,
+          fullscreenExits,
+          suspiciousScore,
         };
       });
 
@@ -521,6 +540,11 @@ const TeacherDashboard = () => {
                           <TableHead className="text-center">Progress</TableHead>
                           <TableHead className="text-center text-success">Correct</TableHead>
                           <TableHead className="text-center text-destructive">Wrong</TableHead>
+                          <TableHead className="text-center">
+                            <span className="flex items-center gap-1 justify-center">
+                              <ShieldAlert className="h-3.5 w-3.5 text-amber-500" /> Risk
+                            </span>
+                          </TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -561,6 +585,22 @@ const TeacherDashboard = () => {
                               <Badge variant="outline" className="border-destructive/30 text-destructive bg-destructive/5">
                                 {r.incorrect}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  r.suspiciousScore === "High"
+                                    ? "bg-red-100 text-red-600"
+                                    : r.suspiciousScore === "Medium"
+                                    ? "bg-amber-100 text-amber-600"
+                                    : "bg-green-100 text-green-700"
+                                }`}>
+                                  {r.suspiciousScore} Risk
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {r.tabSwitches}t · {r.fullscreenExits}fs
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
