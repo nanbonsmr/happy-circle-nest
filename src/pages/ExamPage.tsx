@@ -31,7 +31,6 @@ const MAX_VIOLATIONS = 3;
 const EVENT_LABELS: Record<CheatEventType, string> = {
   tab_switch: "Tab switching",
   fullscreen_exit: "Exiting fullscreen",
-  window_blur: "Leaving the exam window",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
   right_click: "Right-clicking",
@@ -197,6 +196,7 @@ const ExamPage = () => {
 
   // Total violation counter (persists across events)
   const totalViolationsRef = useRef(0);
+  const warningOpenRef = useRef(false);
   const [activeWarning, setActiveWarning] = useState<{
     event: CheatEventType;
     total: number;
@@ -270,27 +270,33 @@ const ExamPage = () => {
     [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast]
   );
 
+  // ── Eject handler ────────────────────────────────────────────────────────────
+  const handleEject = useCallback(() => {
+    warningOpenRef.current = false;
+    handleSubmit(true);
+    setEjected(true);
+    setTimeout(() => navigate("/"), 5000);
+  }, [handleSubmit, navigate]);
+
   // ── Cheat event handler ──────────────────────────────────────────────────────
   const handleCheatWarning = useCallback(
     (event: CheatEventType, _perEventCount: number) => {
+      // If a warning is already showing, ignore new events until dismissed
+      if (warningOpenRef.current) return;
+
       totalViolationsRef.current += 1;
       const total = totalViolationsRef.current;
 
       if (total > MAX_VIOLATIONS) {
-        // Already ejected — just auto-submit silently
-        handleSubmit(true);
-        setEjected(true);
+        // Already past limit — eject immediately
+        handleEject();
         return;
       }
 
+      warningOpenRef.current = true;
       setActiveWarning({ event, total });
-
-      if (total > MAX_VIOLATIONS) {
-        // Trigger ejection submit
-        handleSubmit(true);
-      }
     },
-    [handleSubmit]
+    [handleEject]
   );
 
   const { requestFullscreen } = useCheatPrevention({
@@ -299,13 +305,6 @@ const ExamPage = () => {
     onWarning: handleCheatWarning,
     enabled: !loading && !examEnded && !ejected && !!sessionId,
   });
-
-  // ── Eject handler (called from overlay after final violation) ────────────────
-  const handleEject = useCallback(() => {
-    handleSubmit(true);
-    setEjected(true);
-    setTimeout(() => navigate("/"), 5000);
-  }, [handleSubmit, navigate]);
 
   // ── Load exam ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -457,7 +456,7 @@ const ExamPage = () => {
             event={activeWarning.event}
             totalViolations={activeWarning.total}
             onDismiss={() => {
-              // If this was the final warning, next violation ejects — just close
+              warningOpenRef.current = false;
               if (activeWarning.total > MAX_VIOLATIONS) {
                 handleEject();
               } else {
