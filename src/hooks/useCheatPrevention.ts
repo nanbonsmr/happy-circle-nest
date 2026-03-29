@@ -85,25 +85,10 @@ export function useCheatPrevention({
     let lastClickTime = 0;
     const onMouseDown = () => { lastClickTime = Date.now(); };
 
-    // ── Fullscreen exit ──────────────────────────────────────────────────────
+    // ── Fullscreen exit (browser API) — silently re-enter if somehow exited ─
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        const msSinceClick = Date.now() - lastClickTime;
-        if (msSinceClick < 700) {
-          // Click-caused exit (answer selection etc.) — re-enter silently, no warning
-          document.documentElement
-            .requestFullscreen({ navigationUI: "hide" })
-            .catch(() => {});
-        } else {
-          // Deliberate exit (Escape) — count as violation then re-enter
-          logEvent("fullscreen_exit", "Exited fullscreen");
-          setTimeout(() => {
-            document.documentElement
-              .requestFullscreen({ navigationUI: "hide" })
-              .catch(() => {});
-          }, 200);
-        }
-      }
+      // We rely on CSS overlay, not browser fullscreen, so no violation is logged.
+      // If browser fullscreen was somehow active and exited, just ignore it.
     };
 
     // ── Tab switch / focus loss ──────────────────────────────────────────────
