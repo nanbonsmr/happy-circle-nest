@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Users,
-  ShieldCheck, ShieldAlert,
+  ShieldCheck, ShieldAlert, Shuffle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ExamBlockEditor, newBlock, type ExamBlock } from "@/components/ExamBlockEditor";
+import { parseSeed, seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
 
 const steps = ["Exam Details", "Add Questions", "Review & Publish"];
 
@@ -28,6 +29,7 @@ const CreateExam = () => {
   const [maxParticipants, setMaxParticipants] = useState("");
   const [accessCode, setAccessCode] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
   const [securityLevel, setSecurityLevel] = useState<"low" | "high">("low");
+  const [randomSeed, setRandomSeed] = useState("");
 
   // Step 2 — block-based editor
   const [blocks, setBlocks] = useState<ExamBlock[]>([newBlock()]);
@@ -87,29 +89,64 @@ const CreateExam = () => {
       }
       if (examError) throw examError;
 
-      // Flatten blocks into questions rows, carrying block metadata on first question of each block
+      // Flatten blocks into questions rows, applying seed-based shuffle if provided
       let globalOrder = 0;
       const questionsToInsert: any[] = [];
+      const seed = parseSeed(randomSeed);
+      const hasSeed = randomSeed.trim() !== "" && seed > 0;
+
+      // Shuffle question order across all blocks if seed provided
+      let allBlockQuestions: { block: ExamBlock; qi: number; bi: number }[] = [];
       blocks.forEach((block, bi) => {
-        block.questions.forEach((q, qi) => {
-          questionsToInsert.push({
-            exam_id: exam.id,
-            question_text: q.text.trim(),
-            option_a: q.options[0].trim(),
-            option_b: q.options[1].trim(),
-            option_c: q.options[2].trim(),
-            option_d: q.options[3].trim(),
-            correct_answer: q.correctAnswer,
-            marks: 1,
-            question_order: globalOrder++,
-            block_id: block.id,
-            block_order: bi,
-            // Only store block context on the first question of each block
-            instructions: qi === 0 ? block.instructions || null : null,
-            paragraph: qi === 0 ? block.paragraph || null : null,
-            image_url: qi === 0 ? block.imageUrl || null : null,
-            image_caption: qi === 0 ? block.imageCaption || null : null,
-          });
+        block.questions.forEach((_, qi) => {
+          allBlockQuestions.push({ block, qi, bi });
+        });
+      });
+      if (hasSeed) {
+        allBlockQuestions = seededShuffle(allBlockQuestions, seed);
+      }
+
+      allBlockQuestions.forEach(({ block, qi, bi }) => {
+        const q = block.questions[qi];
+        let optA = q.options[0].trim();
+        let optB = q.options[1].trim();
+        let optC = q.options[2].trim();
+        let optD = q.options[3].trim();
+        let correctAnswer = q.correctAnswer;
+
+        // Shuffle answer options if seed provided
+        if (hasSeed) {
+          const opts = [
+            { key: "A", text: optA },
+            { key: "B", text: optB },
+            { key: "C", text: optC },
+            { key: "D", text: optD },
+          ];
+          // Use a per-question seed derived from main seed + question index
+          const { shuffled, newCorrectKey } = shuffleOptions(opts, correctAnswer, seed + globalOrder);
+          optA = shuffled[0].text;
+          optB = shuffled[1].text;
+          optC = shuffled[2].text;
+          optD = shuffled[3].text;
+          correctAnswer = newCorrectKey;
+        }
+
+        questionsToInsert.push({
+          exam_id: exam.id,
+          question_text: q.text.trim(),
+          option_a: optA,
+          option_b: optB,
+          option_c: optC,
+          option_d: optD,
+          correct_answer: correctAnswer,
+          marks: 1,
+          question_order: globalOrder++,
+          block_id: block.id,
+          block_order: bi,
+          instructions: qi === 0 ? block.instructions || null : null,
+          paragraph: qi === 0 ? block.paragraph || null : null,
+          image_url: qi === 0 ? block.imageUrl || null : null,
+          image_caption: qi === 0 ? block.imageCaption || null : null,
         });
       });
 
@@ -242,6 +279,24 @@ const CreateExam = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Randomization Seed */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <Shuffle className="h-3.5 w-3.5" /> Randomization Seed (optional)
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 1234 — leave empty for no shuffle"
+                    value={randomSeed}
+                    onChange={(e) => setRandomSeed(e.target.value)}
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter any number to shuffle question order and answer choices. Same seed = same shuffle every time.
+                  </p>
+                </div>
+
               </CardContent>
             </Card>
           </motion.div>
@@ -281,6 +336,14 @@ const CreateExam = () => {
                     </strong>
                   </div>
                   <div className="col-span-2"><span className="text-muted-foreground">Access Code:</span> <strong className="font-mono">{accessCode}</strong></div>
+                  {randomSeed.trim() && (
+                    <div className="col-span-2 flex items-center gap-2">
+                      <span className="text-muted-foreground">Randomization Seed:</span>
+                      <strong className="flex items-center gap-1 text-purple-600">
+                        <Shuffle className="h-3.5 w-3.5" /> {randomSeed}
+                      </strong>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
