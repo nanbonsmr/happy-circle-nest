@@ -20,20 +20,27 @@ const ExamReady = () => {
   const [examTitle, setExamTitle] = useState("");
   const [duration, setDuration] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
+  const [loadingExam, setLoadingExam] = useState(true);
+  const [examError, setExamError] = useState("");
 
   useEffect(() => {
     const sessionId = sessionStorage.getItem("session_id");
     if (!sessionId) { navigate(`/exam/${accessCode}`); return; }
 
-    // Load exam info
     const loadExam = async () => {
-      const { data: exam } = await supabase
+      // Use ilike for case-insensitive match + maybeSingle to avoid crash
+      const { data: exam, error } = await supabase
         .from("exams")
         .select("id, title, status, duration_minutes")
-        .eq("access_code", accessCode || "")
-        .single();
+        .ilike("access_code", accessCode || "")
+        .maybeSingle();
 
-      if (!exam) return;
+      if (error || !exam) {
+        setExamError("Exam not found. Please check your access code.");
+        setLoadingExam(false);
+        return;
+      }
+
       setExamTitle(exam.title);
       setExamStatus(exam.status);
       setDuration(exam.duration_minutes);
@@ -43,6 +50,7 @@ const ExamReady = () => {
         .select("*", { count: "exact", head: true })
         .eq("exam_id", exam.id);
       setQuestionCount(count || 0);
+      setLoadingExam(false);
 
       // If already active, go straight to exam
       if (exam.status === "active") {
@@ -55,7 +63,6 @@ const ExamReady = () => {
     };
     loadExam();
 
-    // Subscribe to realtime changes on exams table
     const channel = supabase
       .channel("exam-status")
       .on(
@@ -65,10 +72,13 @@ const ExamReady = () => {
           const newStatus = payload.new.status;
           setExamStatus(newStatus);
           if (newStatus === "active") {
-            await supabase
-              .from("exam_sessions")
-              .update({ status: "in_progress", started_at: new Date().toISOString() })
-              .eq("id", sessionId);
+            const sid = sessionStorage.getItem("session_id");
+            if (sid) {
+              await supabase
+                .from("exam_sessions")
+                .update({ status: "in_progress", started_at: new Date().toISOString() })
+                .eq("id", sid);
+            }
             navigate(`/exam/${accessCode}/take`);
           }
         }
@@ -79,6 +89,28 @@ const ExamReady = () => {
   }, [accessCode, navigate]);
 
   const isWaiting = examStatus !== "active";
+
+  if (loadingExam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (examError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="text-center max-w-sm">
+          <p className="text-destructive font-semibold mb-4">{examError}</p>
+          <button type="button" onClick={() => navigate("/student")}
+            className="px-6 py-2 rounded-xl bg-[#1e3a5f] text-white font-semibold hover:bg-[#162d4a] transition-colors">
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -108,14 +140,14 @@ const ExamReady = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-3">
+            <div className="space-y-3">
               {rules.map((rule, i) => (
-                <motion.li key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} className="flex items-start gap-3 text-sm">
+                <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} className="flex items-start gap-3 text-sm">
                   <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" />
                   <span>{rule}</span>
-                </motion.li>
+                </motion.div>
               ))}
-            </ul>
+            </div>
           </CardContent>
         </Card>
 
