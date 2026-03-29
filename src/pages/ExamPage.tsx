@@ -36,6 +36,7 @@ const EVENT_LABELS: Record<CheatEventType, string> = {
   fullscreen_exit: "Attempting to exit exam screen",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
+  cut_attempt: "Cutting content",
   devtools_open: "Opening DevTools",
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
