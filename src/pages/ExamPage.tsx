@@ -33,7 +33,7 @@ interface Question {
   image_caption: string | null;
 }
 
-const MAX_VIOLATIONS = 3;
+const MAX_VIOLATIONS = 5;
 
 const EVENT_LABELS: Record<CheatEventType, string> = {
   tab_switch: "Tab switching detected",
@@ -202,6 +202,7 @@ const ExamPage = () => {
   const [fullscreenReady, setFullscreenReady] = useState(false);
   const [fsRequesting, setFsRequesting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [ejectedByViolation, setEjectedByViolation] = useState(false);
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
@@ -242,24 +243,47 @@ const ExamPage = () => {
       }).eq("id", sid);
 
       if (isAutoSubmit) { setExamEnded(true); }
-      else { navigate(`/exam/${accessCode}/complete`); }
+      else {
+        // Clean up violation counter on successful submit
+        const sid2 = sessionStorage.getItem("session_id") || sessionId;
+        if (sid2) localStorage.removeItem(`violations_${sid2}`);
+        navigate(`/exam/${accessCode}/complete`);
+      }
     } catch (error: any) {
       toast({ title: "Error submitting", description: error.message, variant: "destructive" });
       setSubmitting(false);
     }
   }, [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast]);
 
-  const handleEject = useCallback(() => {
+  const handleEject = useCallback(async () => {
     warningOpenRef.current = false;
-    handleSubmit(true);
+    const sid = sessionStorage.getItem("session_id") || sessionId;
+
+    // Zero out the score — violations result in score removal
+    if (sid) {
+      await supabase.from("exam_sessions").update({
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+        score: 0,
+        total_marks: 0,
+      }).eq("id", sid);
+      // Clean up violation counter
+      localStorage.removeItem(`violations_${sid}`);
+    }
+
+    setEjectedByViolation(true);
     setEjected(true);
-    setTimeout(() => navigate("/"), 5000);
-  }, [handleSubmit, navigate]);
+  }, [sessionId]);
 
   const handleCheatWarning = useCallback((event: CheatEventType, _count: number) => {
     if (warningOpenRef.current) return;
     totalViolationsRef.current += 1;
     const total = totalViolationsRef.current;
+
+    // Persist violation count so it survives page refresh
+    const sid = sessionStorage.getItem("session_id");
+    if (sid) localStorage.setItem(`violations_${sid}`, String(total));
+
     if (total > MAX_VIOLATIONS) { handleEject(); return; }
     warningOpenRef.current = true;
     setActiveWarning({ event, total });
@@ -276,6 +300,25 @@ const ExamPage = () => {
     const sid = sessionStorage.getItem("session_id");
     if (!sid) { navigate(`/exam/${accessCode}`); return; }
     setSessionId(sid);
+
+    // Restore violation count from localStorage (survives refresh)
+    const stored = parseInt(localStorage.getItem(`violations_${sid}`) || "0", 10);
+    if (stored > 0) {
+      totalViolationsRef.current = stored;
+      // If already ejected before refresh, show ejection screen immediately
+      if (stored >= MAX_VIOLATIONS) {
+        setEjectedByViolation(true);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Block accidental refresh/close during exam
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Refreshing will not reset your violations. Are you sure?";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     const loadExam = async () => {
       const { data: exam } = await supabase
@@ -311,6 +354,10 @@ const ExamPage = () => {
       setLoading(false);
     };
     loadExam();
+
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
   }, [accessCode, navigate]);
 
   useEffect(() => {
@@ -344,6 +391,30 @@ const ExamPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <Loader2 className="h-8 w-8 animate-spin text-[#1e3a5f]" />
+      </div>
+    );
+  }
+
+  if (ejectedByViolation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-red-950 p-6">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md text-center">
+          <div className="rounded-2xl bg-white shadow-2xl p-8">
+            <div className="mx-auto mb-5 h-20 w-20 rounded-full bg-red-100 flex items-center justify-center">
+              <XCircle className="h-10 w-10 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-red-700 mb-3">Your Score Has Been Removed</h1>
+            <p className="text-slate-600 mb-2">
+              You reached <strong>{MAX_VIOLATIONS} violations</strong> during this exam.
+            </p>
+            <p className="text-slate-500 text-sm mb-6">
+              Your score has been set to <strong>0</strong> and your teacher has been notified. This action cannot be undone.
+            </p>
+            <Button type="button" onClick={() => navigate("/")} variant="outline" className="w-full">
+              Return to Home
+            </Button>
+          </div>
+        </motion.div>
       </div>
     );
   }
