@@ -18,6 +18,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { useExamAutoStatus } from "@/hooks/useExamAutoStatus";
 import { useReportFilters } from "@/hooks/useReportFilters";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Exam = Tables<"exams">;
@@ -495,9 +496,15 @@ const TeacherDashboard = () => {
               {savingProfile ? "Saving..." : "Save Changes"}
             </Button>
           </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+            <h2 className="font-bold text-[#1e3a5f]">Change Password</h2>
+            <ChangePasswordForm />
+          </div>
+
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
             <h2 className="font-bold text-[#1e3a5f]">Account</h2>
-            <p className="text-sm text-slate-500">Contact your admin for password resets or account changes.</p>
+            <p className="text-sm text-slate-500">Contact your admin for account changes.</p>
             <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" /> Sign Out
             </Button>

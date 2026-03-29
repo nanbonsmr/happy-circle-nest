@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { useExamAutoStatus } from "@/hooks/useExamAutoStatus";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import type { Tables } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 
@@ -430,6 +431,10 @@ const AdminDashboard = () => {
       {/* Settings Tab */}
       {tab === "settings" && (
         <div className="max-w-lg space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+            <h2 className="font-bold text-[#1e3a5f]">Change Password</h2>
+            <ChangePasswordForm />
+          </div>
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
             <h2 className="font-bold text-[#1e3a5f]">Admin Account</h2>
             <p className="text-sm text-slate-500">You are logged in as the system administrator.</p>
