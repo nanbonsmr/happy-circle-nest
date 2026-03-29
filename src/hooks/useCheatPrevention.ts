@@ -85,10 +85,18 @@ export function useCheatPrevention({
     let lastClickTime = 0;
     const onMouseDown = () => { lastClickTime = Date.now(); };
 
-    // ── Fullscreen exit (browser API) — silently re-enter if somehow exited ─
+    // ── Fullscreen exit — silently re-enter, never log as violation ─────────
+    // The CSS overlay keeps the exam covering the screen regardless, but we
+    // also maintain browser fullscreen for extra immersion.
     const onFullscreenChange = () => {
-      // We rely on CSS overlay, not browser fullscreen, so no violation is logged.
-      // If browser fullscreen was somehow active and exited, just ignore it.
+      if (!document.fullscreenElement) {
+        // Silently re-enter fullscreen — no warning, no violation logged
+        setTimeout(() => {
+          document.documentElement
+            .requestFullscreen({ navigationUI: "hide" })
+            .catch(() => {}); // ignore if blocked by browser
+        }, 100);
+      }
     };
 
     // ── Tab switch / focus loss ──────────────────────────────────────────────
