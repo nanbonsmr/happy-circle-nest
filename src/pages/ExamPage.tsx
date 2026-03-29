@@ -365,6 +365,9 @@ const ExamPage = () => {
               type="button"
               className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base"
               onClick={() => {
+                document.documentElement
+                  .requestFullscreen({ navigationUI: "hide" })
+                  .catch(() => {});
                 setFullscreenReady(true);
               }}
             >
