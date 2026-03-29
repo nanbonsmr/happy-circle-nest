@@ -16,25 +16,25 @@ export type Database = {
     Tables: {
       cheat_logs: {
         Row: {
+          created_at: string
+          detail: string | null
+          event_type: string
           id: string
           session_id: string
-          event_type: string
-          detail: string | null
-          created_at: string
         }
         Insert: {
+          created_at?: string
+          detail?: string | null
+          event_type: string
           id?: string
           session_id: string
-          event_type: string
-          detail?: string | null
-          created_at?: string
         }
         Update: {
+          created_at?: string
+          detail?: string | null
+          event_type?: string
           id?: string
           session_id?: string
-          event_type?: string
-          detail?: string | null
-          created_at?: string
         }
         Relationships: [
           {
@@ -170,61 +170,61 @@ export type Database = {
       }
       questions: {
         Row: {
+          block_id: string | null
+          block_order: number | null
           correct_answer: string
           created_at: string
           exam_id: string
           id: string
+          image_caption: string | null
+          image_url: string | null
+          instructions: string | null
           marks: number
           option_a: string
           option_b: string
           option_c: string
           option_d: string
+          paragraph: string | null
           question_order: number
           question_text: string
-          block_id: string | null
-          instructions: string | null
-          paragraph: string | null
-          image_url: string | null
-          image_caption: string | null
-          block_order: number
         }
         Insert: {
+          block_id?: string | null
+          block_order?: number | null
           correct_answer: string
           created_at?: string
           exam_id: string
           id?: string
+          image_caption?: string | null
+          image_url?: string | null
+          instructions?: string | null
           marks?: number
           option_a: string
           option_b: string
           option_c: string
           option_d: string
+          paragraph?: string | null
           question_order?: number
           question_text: string
-          block_id?: string | null
-          instructions?: string | null
-          paragraph?: string | null
-          image_url?: string | null
-          image_caption?: string | null
-          block_order?: number
         }
         Update: {
+          block_id?: string | null
+          block_order?: number | null
           correct_answer?: string
           created_at?: string
           exam_id?: string
           id?: string
+          image_caption?: string | null
+          image_url?: string | null
+          instructions?: string | null
           marks?: number
           option_a?: string
           option_b?: string
           option_c?: string
           option_d?: string
+          paragraph?: string | null
           question_order?: number
           question_text?: string
-          block_id?: string | null
-          instructions?: string | null
-          paragraph?: string | null
-          image_url?: string | null
-          image_caption?: string | null
-          block_order?: number
         }
         Relationships: [
           {
