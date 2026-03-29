@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -44,6 +44,56 @@ const EVENT_LABELS: Record<CheatEventType, string> = {
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
 };
+
+// ── Memoized answer options — prevents full re-render on parent state change ──
+const AnswerOptions = memo(({
+  questionId,
+  options,
+  selected,
+  onSelect,
+}: {
+  questionId: string;
+  options: { key: string; text: string }[];
+  selected: string;
+  onSelect: (questionId: string, key: string) => void;
+}) => (
+  <div className="space-y-3" role="radiogroup">
+    {options.map((opt) => {
+      const isSelected = selected === opt.key;
+      return (
+        <label
+          key={opt.key}
+          htmlFor={`opt-${questionId}-${opt.key}`}
+          onMouseDown={(e) => e.preventDefault()}
+          className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all select-none ${
+            isSelected
+              ? "border-[#1e3a5f] bg-[#1e3a5f]/5 shadow-sm ring-1 ring-[#1e3a5f]/20"
+              : "border-slate-200 hover:border-[#1e3a5f]/40 hover:bg-slate-50"
+          }`}
+        >
+          {/* Hidden native radio — handles keyboard nav + accessibility */}
+          <input
+            type="radio"
+            id={`opt-${questionId}-${opt.key}`}
+            name={`question-${questionId}`}
+            value={opt.key}
+            checked={isSelected}
+            onChange={() => onSelect(questionId, opt.key)}
+            className="sr-only"
+          />
+          {/* Custom radio circle */}
+          <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+            isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-slate-300"
+          }`}>
+            {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
+          </div>
+          <span className="font-semibold text-sm text-[#1e3a5f] shrink-0">{opt.key}.</span>
+          <span className="text-[#0f172a] leading-snug">{opt.text}</span>
+        </label>
+      );
+    })}
+  </div>
+));
 
 const CheatWarningOverlay = ({
   event, totalViolations, onDismiss, onEject,
@@ -274,15 +324,15 @@ const ExamPage = () => {
     return () => clearInterval(timer);
   }, [loading, handleSubmit, timeLeft, examEnded, ejected]);
 
-  const saveAnswer = async (questionId: string, selectedAnswer: string) => {
-    setAnswers((prev: Record<string, string>) => ({ ...prev, [questionId]: selectedAnswer }));
+  const saveAnswer = useCallback(async (questionId: string, selectedAnswer: string) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
     const sid = sessionStorage.getItem("session_id");
     if (!sid) return;
     await supabase.from("student_answers").upsert(
       { session_id: sid, question_id: questionId, selected_answer: selectedAnswer },
       { onConflict: "session_id,question_id" }
     );
-  };
+  }, []);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -353,20 +403,16 @@ const ExamPage = () => {
               disabled={fsRequesting}
               className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base disabled:opacity-70"
               onMouseDown={() => {
-                // Trigger fullscreen on mousedown — the earliest user gesture point.
-                // This MUST be synchronous and the very first call in the handler.
                 setFsRequesting(true);
                 document.documentElement.setAttribute("tabindex", "-1");
-                // Fire-and-forget: don't await — keep it synchronous in the gesture chain
+                // Enter real fullscreen for the visual transition effect only,
+                // then immediately exit it. The CSS overlay (fixed inset-0) takes
+                // over — no browser fullscreen session = zero exit-on-click issues.
                 document.documentElement
                   .requestFullscreen({ navigationUI: "hide" })
-                  .then(() => {
-                    // Fullscreen granted — proceed
-                    setFullscreenReady(true);
-                    setFsRequesting(false);
-                  })
-                  .catch(() => {
-                    // Fullscreen denied (mobile / blocked) — proceed anyway without fullscreen
+                  .then(() => document.exitFullscreen())
+                  .catch(() => {})
+                  .finally(() => {
                     setFullscreenReady(true);
                     setFsRequesting(false);
                   });
@@ -513,34 +559,13 @@ const ExamPage = () => {
                   </div>
                   <h2 className="text-xl font-semibold mb-6 mt-4 text-[#0f172a]">{q.question_text}</h2>
 
-                  {/* Answer options — plain non-focusable divs, zero fullscreen interference */}
-                  <div className="space-y-3">
-                    {options.map((opt) => {
-                      const selected = answers[q.id] === opt.key;
-                      return (
-                        <div
-                          key={opt.key}
-                          onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                          onTouchStart={(e: { preventDefault: () => void }) => e.preventDefault()}
-                          onClick={() => saveAnswer(q.id, opt.key)}
-                          tabIndex={-1}
-                          className={`flex items-center gap-3 rounded-xl border p-4 transition-all exam-option ${
-                            selected
-                              ? "border-[#1e3a5f] bg-[#1e3a5f]/5 shadow-sm"
-                              : "border-slate-200 hover:border-[#1e3a5f]/30 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                            selected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-slate-300"
-                          }`}>
-                            {selected && <div className="h-2 w-2 rounded-full bg-white" />}
-                          </div>
-                          <span className="font-semibold text-sm text-[#1e3a5f]">{opt.key}.</span>
-                          <span className="text-[#0f172a]">{opt.text}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Answer options — memoized, proper radio inputs, no fullscreen interference */}
+                  <AnswerOptions
+                    questionId={q.id}
+                    options={options}
+                    selected={answers[q.id] || ""}
+                    onSelect={saveAnswer}
+                  />
                 </CardContent>
               </Card>
             </motion.div>
