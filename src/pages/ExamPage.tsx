@@ -40,7 +40,6 @@ const EVENT_LABELS: Record<CheatEventType, string> = {
   fullscreen_exit: "Attempting to exit exam screen",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
-  cut_attempt: "Cutting content",
   devtools_open: "Opening DevTools",
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
@@ -151,8 +150,8 @@ const ExamPage = () => {
   const warningOpenRef = useRef(false);
   const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; total: number } | null>(null);
   const [fullscreenReady, setFullscreenReady] = useState(false);
-  // Track fullscreen request state to show loading on button
   const [fsRequesting, setFsRequesting] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
