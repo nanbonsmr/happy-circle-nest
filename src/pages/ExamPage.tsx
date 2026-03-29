@@ -593,6 +593,28 @@ const ExamPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Submit confirmation dialog */}
+      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+        <AlertDialogContent className="z-[250]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have answered {answeredCount} of {questions.length} questions.
+              Once submitted, you cannot change your answers. Are you sure you want to submit?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleSubmit(false)}
+              className="bg-[#1e3a5f] hover:bg-[#162d4a]"
+            >
+              Yes, Submit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
