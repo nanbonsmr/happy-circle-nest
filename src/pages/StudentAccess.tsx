@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { User, Mail, KeyRound, AlertCircle, BookOpen, ArrowRight } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { User, Mail, KeyRound, AlertCircle, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,15 +31,17 @@ const StudentAccess = () => {
       return;
     }
     const checkExam = async () => {
+      // Case-insensitive lookup
       const { data, error } = await supabase
         .from("exams")
         .select("id, title, status")
-        .eq("access_code", accessCode || "")
-        .in("status", ["published", "active"])
+        .ilike("access_code", accessCode || "")
         .maybeSingle();
 
       if (error || !data) {
         setExamNotFound(true);
+      } else if (data.status === "completed") {
+        setExamNotFound(true); // treat closed exams as not accessible
       } else {
         setExamTitle(data.title);
       }
@@ -68,11 +69,11 @@ const StudentAccess = () => {
       const { data: exam, error: examError } = await supabase
         .from("exams")
         .select("id, status, max_participants")
-        .eq("access_code", accessCode || "")
+        .ilike("access_code", accessCode || "")
         .in("status", ["published", "active"])
         .maybeSingle();
 
-      if (examError || !exam) throw new Error("Exam not found or not available.");
+      if (examError || !exam) throw new Error("Exam not found or not available. Please check your access code.");
 
       if (exam.max_participants) {
         const { count } = await supabase
@@ -132,50 +133,48 @@ const StudentAccess = () => {
     );
   }
 
-  // If no access code or exam not found, show code entry screen
-  if (needsCode || examNotFound) {
+  // If no access code provided, redirect to student entry
+  if (needsCode) {
     return (
-      <div className="min-h-screen flex flex-col bg-[hsl(210,29%,15%)]">
-        {/* Header */}
-        <div className="flex items-center justify-center py-6">
-          <img src={logo} alt="NejoExamPrep Logo" className="h-10 w-10 rounded-full object-cover mr-2" />
-          <span className="text-xl font-bold text-white">NejoExamPrep</span>
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1e2e] p-6">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <BookOpen className="h-10 w-10 mx-auto mb-4 text-[#0f1e2e]" />
+          <h2 className="text-xl font-bold text-[#0f1e2e] mb-2">Enter Exam Key</h2>
+          <p className="text-sm text-slate-500 mb-5">Please enter your exam key to continue.</p>
+          <form onSubmit={handleCodeSubmit} className="flex gap-2">
+            <Input
+              placeholder="Enter exam key"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              className="flex-1 h-11"
+              autoFocus
+            />
+            <Button type="submit" className="h-11 px-5 bg-[#0f1e2e] hover:bg-[#1a2e42] text-white border-0 font-semibold">
+              Go
+            </Button>
+          </form>
         </div>
+      </div>
+    );
+  }
 
-        {/* Center card */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="w-full max-w-md">
-            <Card className="border-border/50 shadow-2xl">
-              <CardContent className="pt-8 pb-8">
-                <div className="text-center mb-6">
-                  <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-[hsl(210,29%,24%)] flex items-center justify-center">
-                    <BookOpen className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold">Student</h2>
-                  {examNotFound && (
-                    <p className="text-sm text-destructive mt-2 flex items-center justify-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      Invalid code. Please try again.
-                    </p>
-                  )}
-                </div>
-                <form onSubmit={handleCodeSubmit} className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Enter exam key"
-                      value={manualCode}
-                      onChange={(e) => setManualCode(e.target.value)}
-                      className="h-12 text-base flex-1"
-                      autoFocus
-                    />
-                    <Button type="submit" className="h-12 px-6 bg-[hsl(210,29%,24%)] text-white hover:bg-[hsl(210,29%,20%)] font-semibold">
-                      Next
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </motion.div>
+  // Exam not found or closed
+  if (examNotFound) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1e2e] p-6">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <AlertCircle className="h-10 w-10 mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-bold text-[#0f1e2e] mb-2">Exam Not Found</h2>
+          <p className="text-sm text-slate-500 mb-5">
+            The exam key <span className="font-mono font-semibold text-[#0f1e2e]">{accessCode}</span> is invalid, expired, or not available.
+          </p>
+          <Button
+            type="button"
+            onClick={() => navigate("/student")}
+            className="w-full h-11 bg-[#0f1e2e] hover:bg-[#1a2e42] text-white border-0 font-semibold"
+          >
+            Try Another Key
+          </Button>
         </div>
       </div>
     );

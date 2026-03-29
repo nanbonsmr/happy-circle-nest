@@ -11,17 +11,18 @@ const StudentEntry = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const key = examKey.trim().toUpperCase();
+    const key = examKey.trim();
     if (!key) { setError("Please enter your exam key."); return; }
 
     setLoading(true);
     setError("");
 
     try {
+      // Case-insensitive lookup — access codes may be stored in any case
       const { data, error: dbError } = await supabase
         .from("exams")
-        .select("id, status")
-        .eq("access_code", key)
+        .select("id, status, access_code")
+        .ilike("access_code", key)
         .maybeSingle();
 
       if (dbError) throw dbError;
@@ -39,12 +40,13 @@ const StudentEntry = () => {
       }
 
       if (data.status === "draft") {
-        setError("This exam is not available yet.");
+        setError("This exam is not available yet. Please wait for your teacher to publish it.");
         setLoading(false);
         return;
       }
 
-      navigate(`/exam/${key}`);
+      // Navigate using the exact code from DB to avoid case mismatch
+      navigate(`/exam/${data.access_code}`);
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
