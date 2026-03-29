@@ -21,7 +21,7 @@ import * as XLSX from "xlsx";
 type Exam = Tables<"exams">;
 interface TeacherRow { id: string; full_name: string; email: string; examCount: number; studentCount: number; }
 interface SessionRow { id: string; exam_id: string; student_name: string; student_email: string; score: number | null; total_marks: number | null; status: string; submitted_at: string | null; exam_title: string; exam_subject: string; }
-type Tab = "overview" | "teachers" | "exams" | "results" | "settings";
+type Tab = "overview" | "teachers" | "students" | "exams" | "results" | "settings";
 
 const statusColors: Record<string, string> = {
   draft: "bg-slate-100 text-slate-500",
@@ -51,6 +51,15 @@ const AdminDashboard = () => {
   const [sortAsc, setSortAsc] = useState(false);
   const [resultSearch, setResultSearch] = useState("");
   const [resultExamFilter, setResultExamFilter] = useState("all");
+  // Students registry state
+  const [students, setStudents] = useState<any[]>([]);
+  const [showStudentDialog, setShowStudentDialog] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [studentGrade, setStudentGrade] = useState("");
+  const [savingStudent, setSavingStudent] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
 
   useEffect(() => {
     const init = async () => {
@@ -106,6 +115,9 @@ const AdminDashboard = () => {
       (allExams || []).map((e) => [e.id, { title: e.title, subject: e.subject || "" }])
     );
     setResults((sessions || []).map((s: any) => ({ ...s, exam_title: examMap.get(s.exam_id)?.title || "—", exam_subject: examMap.get(s.exam_id)?.subject || "—" })));
+    // Load student registry
+    const { data: studs } = await supabase.from("students" as any).select("*").order("student_id");
+    setStudents(studs || []);
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
@@ -141,6 +153,66 @@ const AdminDashboard = () => {
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
   };
 
+  const generateStudentId = (count: number) => `STU-${String(count + 1).padStart(4, "0")}`;
+
+  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
+  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email); setStudentGrade(s.grade); setShowStudentDialog(true); };
+
+  const handleSaveStudent = async () => {
+    if (!studentName.trim()) return;
+    setSavingStudent(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (editingStudent) {
+        const { error } = await supabase.from("students" as any).update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }).eq("id", editingStudent.id);
+        if (error) throw error;
+        toast({ title: "Student updated!" });
+      } else {
+        const newId = generateStudentId(students.length);
+        const { error } = await supabase.from("students" as any).insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id });
+        if (error) throw error;
+        toast({ title: "Student added!", description: `Student ID: ${newId}` });
+      }
+      setShowStudentDialog(false);
+      await loadData();
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    setSavingStudent(false);
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      const { error } = await supabase.from("students" as any).delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Student removed" });
+      await loadData();
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  };
+
+  const handleExportStudents = (format: "csv" | "xlsx") => {
+    const data = filteredStudents.map((s) => ({ "Student ID": s.student_id, "Full Name": s.full_name, Email: s.email, Grade: s.grade }));
+    if (format === "xlsx") {
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Students");
+      XLSX.writeFile(wb, "students.xlsx");
+    } else {
+      const header = ["Student ID", "Full Name", "Email", "Grade"].join(",");
+      const rows = data.map((r) => [r["Student ID"], r["Full Name"], r.Email, r.Grade].join(","));
+      const csv = [header, ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "students.csv"; a.click();
+      URL.revokeObjectURL(url);
+    }
+    toast({ title: "Exported!" });
+  };
+
+  const filteredStudents = students.filter((s) => {
+    if (!studentSearch.trim()) return true;
+    const q = studentSearch.toLowerCase();
+    return s.full_name.toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q) || s.email.toLowerCase().includes(q);
+  });
+
   const handleExportResults = () => {
     if (!sortedResults.length) return;
     const data = sortedResults.map((r, i) => ({ Rank: i + 1, Student: r.student_name, Email: r.student_email, Exam: r.exam_title, Subject: r.exam_subject, Score: r.score ?? 0, "Total Marks": r.total_marks ?? 0, "%": r.total_marks && r.total_marks > 0 ? Math.round(((r.score ?? 0) / r.total_marks) * 100) : 0, "Submitted At": r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—" }));
@@ -170,6 +242,7 @@ const AdminDashboard = () => {
   const navItems = [
     { icon: LayoutDashboard, label: "Overview", tab: "overview" },
     { icon: Users, label: "Teachers", tab: "teachers" },
+    { icon: UserPlus, label: "Students", tab: "students" },
     { icon: FileText, label: "All Exams", tab: "exams" },
     { icon: BarChart3, label: "Results", tab: "results" },
     { icon: Settings, label: "Settings", tab: "settings" },
@@ -190,13 +263,28 @@ const AdminDashboard = () => {
       userName="Admin"
       userEmail=""
       role="admin"
-      headerTitle={tab === "overview" ? "Dashboard" : tab === "teachers" ? "Teachers" : tab === "exams" ? "All Exams" : tab === "results" ? "Results" : "Settings"}
+      headerTitle={tab === "overview" ? "Dashboard" : tab === "teachers" ? "Teachers" : tab === "students" ? "Students" : tab === "exams" ? "All Exams" : tab === "results" ? "Results" : "Settings"}
       headerAction={
         tab === "teachers" ? (
           <button type="button" onClick={openAddTeacher}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] text-white text-xs font-semibold hover:bg-[#1a7fd4] transition-colors">
             <UserPlus className="h-3.5 w-3.5" /> Add Teacher
           </button>
+        ) : tab === "students" ? (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => handleExportStudents("csv")} disabled={!filteredStudents.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-600 text-white text-xs font-semibold hover:bg-slate-700 disabled:opacity-40 transition-colors">
+              <Download className="h-3.5 w-3.5" /> CSV
+            </button>
+            <button type="button" onClick={() => handleExportStudents("xlsx")} disabled={!filteredStudents.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
+              <Download className="h-3.5 w-3.5" /> Excel
+            </button>
+            <button type="button" onClick={openAddStudent}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] text-white text-xs font-semibold hover:bg-[#1a7fd4] transition-colors">
+              <UserPlus className="h-3.5 w-3.5" /> Add Student
+            </button>
+          </div>
         ) : tab === "results" ? (
           <button type="button" onClick={handleExportResults}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors">
@@ -296,6 +384,58 @@ const AdminDashboard = () => {
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => openEditTeacher(t)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
                           <button type="button" onClick={() => setDeleteTeacher(t)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Remove"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Students Tab */}
+      {tab === "students" && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+            <h2 className="font-bold text-[#1e3a5f]">Student Registry ({filteredStudents.length})</h2>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input type="text" placeholder="Search by name, ID or email..." value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" />
+            </div>
+          </div>
+          {filteredStudents.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              {students.length === 0 ? "No students yet. Add your first student." : "No students match your search."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3 font-semibold">Student ID</th>
+                    <th className="text-left px-4 py-3 font-semibold">Full Name</th>
+                    <th className="text-left px-4 py-3 font-semibold">Email</th>
+                    <th className="text-left px-4 py-3 font-semibold">Grade</th>
+                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((s) => (
+                    <tr key={s.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <span className="font-mono font-bold text-[#1a8fe3] bg-blue-50 px-2 py-0.5 rounded">{s.student_id}</span>
+                      </td>
+                      <td className="px-4 py-3.5 font-semibold text-[#1e3a5f]">{s.full_name}</td>
+                      <td className="px-4 py-3.5 text-slate-500">{s.email || "—"}</td>
+                      <td className="px-4 py-3.5 text-slate-500">{s.grade || "—"}</td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => openEditStudent(s)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => handleDeleteStudent(s.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -444,6 +584,29 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Add / Edit Student Dialog */}
+      <Dialog open={showStudentDialog} onOpenChange={(o) => !o && setShowStudentDialog(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingStudent ? "Edit Student" : "Add Student"}</DialogTitle>
+            <DialogDescription>
+              {editingStudent ? `Editing ${editingStudent.student_id}` : "A unique Student ID will be generated automatically."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label>Full Name *</Label><Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student full name" /></div>
+            <div className="space-y-2"><Label>Email (optional)</Label><Input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="student@school.edu" /></div>
+            <div className="space-y-2"><Label>Grade / Class (optional)</Label><Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStudentDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveStudent} disabled={savingStudent || !studentName.trim()} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+              {savingStudent ? "Saving..." : editingStudent ? "Update" : "Add Student"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit Teacher Dialog */}
       <Dialog open={showTeacherDialog} onOpenChange={(o) => !o && setShowTeacherDialog(false)}>
