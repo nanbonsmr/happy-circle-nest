@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 
 const rules = [
+  "Press F11 on your keyboard to enter fullscreen mode before the exam starts.",
   "Do not switch tabs or leave the exam window.",
   "Each question must be answered before moving forward.",
   "The exam will auto-submit when the timer runs out.",
   "You cannot go back once the exam is submitted.",
   "Ensure a stable internet connection throughout the exam.",
+  "5 violations (tab switching, exiting fullscreen) will result in your score being removed.",
 ];
 
 const ExamReady = () => {
