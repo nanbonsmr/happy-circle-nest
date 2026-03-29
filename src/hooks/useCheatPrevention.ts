@@ -214,7 +214,7 @@ export function useCheatPrevention({
         document.removeEventListener(ev, resetInactivity)
       );
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      // Exit real fullscreen if somehow still active
+      // Exit browser fullscreen if somehow still active
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     };
   }, [enabled, securityLevel, logEvent, resetInactivity, requestFullscreen]);
