@@ -8,6 +8,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
@@ -36,6 +40,7 @@ const EVENT_LABELS: Record<CheatEventType, string> = {
   fullscreen_exit: "Attempting to exit exam screen",
   copy_attempt: "Copying content",
   paste_attempt: "Pasting content",
+  cut_attempt: "Cutting content",
   devtools_open: "Opening DevTools",
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
@@ -558,7 +563,7 @@ const ExamPage = () => {
               <Button
                 type="button"
                 onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                onClick={() => handleSubmit(false)}
+                onClick={() => setShowSubmitConfirm(true)}
                 disabled={!allAnswered || submitting}
                 className="gap-2 bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-0"
               >
@@ -606,6 +611,28 @@ const ExamPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Submit confirmation dialog */}
+      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+        <AlertDialogContent className="z-[250]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have answered {answeredCount} of {questions.length} questions.
+              Once submitted, you cannot change your answers. Are you sure you want to submit?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleSubmit(false)}
+              className="bg-[#1e3a5f] hover:bg-[#162d4a]"
+            >
+              Yes, Submit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
