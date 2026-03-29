@@ -151,6 +151,7 @@ const ExamPage = () => {
   const warningOpenRef = useRef(false);
   const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; total: number } | null>(null);
   const [fullscreenReady, setFullscreenReady] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
