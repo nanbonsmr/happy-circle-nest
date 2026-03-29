@@ -332,19 +332,6 @@ const ExamPage = () => {
     );
   }
 
-  const q = questions[currentQuestion];
-  const options = [
-    { key: "A", text: q.option_a },
-    { key: "B", text: q.option_b },
-    { key: "C", text: q.option_c },
-    { key: "D", text: q.option_d },
-  ];
-  const isTimeLow = timeLeft < 300;
-  const totalViolations = totalViolationsRef.current;
-  const answeredCount = Object.keys(answers).length;
-  const allAnswered = answeredCount === questions.length;
-  const isLastQuestion = currentQuestion === questions.length - 1;
-
   // ── Fullscreen gate — shown before exam starts ───────────────────────────
   if (!fullscreenReady) {
     return (
@@ -402,6 +389,19 @@ const ExamPage = () => {
       </div>
     );
   }
+
+  const q = questions[currentQuestion];
+  const options = [
+    { key: "A", text: q.option_a },
+    { key: "B", text: q.option_b },
+    { key: "C", text: q.option_c },
+    { key: "D", text: q.option_d },
+  ];
+  const isTimeLow = timeLeft < 300;
+  const totalViolations = totalViolationsRef.current;
+  const answeredCount = Object.keys(answers).length;
+  const allAnswered = answeredCount === questions.length;
+  const isLastQuestion = currentQuestion === questions.length - 1;
 
   return (
     <>
