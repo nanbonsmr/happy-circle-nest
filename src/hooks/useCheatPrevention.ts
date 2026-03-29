@@ -8,6 +8,7 @@ export type CheatEventType =
   | "fullscreen_exit"
   | "copy_attempt"
   | "paste_attempt"
+  | "cut_attempt"
   | "devtools_open"
   | "inactivity"
   | "window_resize";
@@ -33,6 +34,7 @@ export function useCheatPrevention({
     fullscreen_exit: 0,
     copy_attempt: 0,
     paste_attempt: 0,
+    cut_attempt: 0,
     devtools_open: 0,
     inactivity: 0,
     window_resize: 0,
@@ -104,9 +106,16 @@ export function useCheatPrevention({
       }
     };
 
-    // ── Tab switch ───────────────────────────────────────────────────────────
+    // ── Tab switch / focus loss ──────────────────────────────────────────────
     const onVisibilityChange = () => {
-      if (document.hidden) logEvent("tab_switch");
+      if (document.hidden) logEvent("tab_switch", "Visibility hidden");
+    };
+
+    const onWindowBlur = () => {
+      // Only log if the document is not hidden (avoids double-logging with visibilitychange)
+      if (!document.hidden) {
+        logEvent("tab_switch", "Window lost focus");
+      }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -130,12 +139,13 @@ export function useCheatPrevention({
 
       const blocked =
         e.key === "PrintScreen" ||
-        (e.ctrlKey && ["c", "v", "s", "a", "p"].includes(e.key.toLowerCase())) ||
+        (e.ctrlKey && ["c", "v", "x", "s", "a", "p"].includes(e.key.toLowerCase())) ||
         (e.altKey && e.key === "Tab") ||
         e.key === "Meta";
       if (blocked) {
         e.preventDefault();
         if (e.key === "PrintScreen") logEvent("copy_attempt", "PrintScreen");
+        if (e.ctrlKey && e.key.toLowerCase() === "x") logEvent("cut_attempt", "Ctrl+X");
       }
     };
 
@@ -158,7 +168,7 @@ export function useCheatPrevention({
       e.stopPropagation();
     };
 
-    // ── High security: block copy/paste ──────────────────────────────────────
+    // ── High security: block copy/paste/cut ─────────────────────────────────
     const onCopy = (e: ClipboardEvent) => {
       if (securityLevel === "high") {
         e.preventDefault();
@@ -171,6 +181,17 @@ export function useCheatPrevention({
         logEvent("paste_attempt");
       }
     };
+    const onCut = (e: ClipboardEvent) => {
+      if (securityLevel === "high") {
+        e.preventDefault();
+        logEvent("cut_attempt");
+      }
+    };
+
+    // ── Prevent drag (prevents drag-to-copy text) ───────────────────────────
+    const onDragStart = (e: DragEvent) => {
+      e.preventDefault();
+    };
 
     // ── Inactivity ───────────────────────────────────────────────────────────
     const activityEvents = ["mousemove", "keydown", "click", "touchstart"] as const;
@@ -178,6 +199,7 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("blur", onWindowBlur);
     document.addEventListener("mousedown", onMouseDown, true);
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
@@ -185,12 +207,15 @@ export function useCheatPrevention({
     document.addEventListener("contextmenu", onContextMenu, true);
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
+    document.addEventListener("cut", onCut);
+    document.addEventListener("dragstart", onDragStart, true);
 
     return () => {
       clearTimeout(graceTimer);
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("blur", onWindowBlur);
       document.removeEventListener("mousedown", onMouseDown, true);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
@@ -198,6 +223,8 @@ export function useCheatPrevention({
       document.removeEventListener("contextmenu", onContextMenu, true);
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
+      document.removeEventListener("cut", onCut);
+      document.removeEventListener("dragstart", onDragStart, true);
       activityEvents.forEach((ev) =>
         document.removeEventListener(ev, resetInactivity)
       );
