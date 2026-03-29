@@ -3,12 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SecurityLevel = "low" | "high";
 
+// No fullscreen_exit here — we don't use browser fullscreen during exam.
+// Escape/F11 are blocked via keydown. CSS overlay handles visual fullscreen.
 export type CheatEventType =
   | "tab_switch"
   | "fullscreen_exit"
   | "copy_attempt"
   | "paste_attempt"
-  | "cut_attempt"
   | "devtools_open"
   | "inactivity"
   | "window_resize";
@@ -20,7 +21,7 @@ interface UseCheatPreventionOptions {
   enabled: boolean;
 }
 
-const GRACE_PERIOD_MS = 1500;
+const GRACE_PERIOD_MS = 2000;
 const INACTIVITY_THRESHOLD = 120_000;
 
 export function useCheatPrevention({
@@ -34,7 +35,6 @@ export function useCheatPrevention({
     fullscreen_exit: 0,
     copy_attempt: 0,
     paste_attempt: 0,
-    cut_attempt: 0,
     devtools_open: 0,
     inactivity: 0,
     window_resize: 0,
@@ -68,52 +68,35 @@ export function useCheatPrevention({
     }, INACTIVITY_THRESHOLD);
   }, [logEvent]);
 
-  // No-op — we use CSS overlay, not browser fullscreen API during exam
+  // No-op — CSS overlay handles visual fullscreen, no browser API needed
   const requestFullscreen = useCallback(() => {}, []);
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Grace period before counting violations
     readyRef.current = false;
     const graceTimer = setTimeout(() => {
       lastSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
       readyRef.current = true;
     }, GRACE_PERIOD_MS);
 
-    // Track last click time to distinguish click-caused vs deliberate fullscreen exit
-    let lastClickTime = 0;
-    const onMouseDown = () => { lastClickTime = Date.now(); };
-
-    // ── Fullscreen exit — silently re-enter, never log as violation ─────────
-    // The CSS overlay keeps the exam covering the screen regardless, but we
-    // also maintain browser fullscreen for extra immersion.
-    const onFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        // Silently re-enter fullscreen — no warning, no violation logged
-        setTimeout(() => {
-          document.documentElement
-            .requestFullscreen({ navigationUI: "hide" })
-            .catch(() => {}); // ignore if blocked by browser
-        }, 100);
-      }
-    };
-
-    // ── Tab switch / focus loss ──────────────────────────────────────────────
+    // ── Tab switch — page hidden ─────────────────────────────────────────────
     const onVisibilityChange = () => {
-      if (document.hidden) logEvent("tab_switch", "Visibility hidden");
+      if (document.hidden) logEvent("tab_switch", "Page hidden");
     };
 
-    const onWindowBlur = () => {
-      // Only log if the document is not hidden (avoids double-logging with visibilitychange)
-      if (!document.hidden) {
-        logEvent("tab_switch", "Window lost focus");
-      }
-    };
-
+    // ── Escape / F11 — count as fullscreen_exit violation ───────────────────
+    // We use CSS overlay so there's no browser fullscreen to exit.
+    // Escape/F11 are still detected and counted as violations.
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Can't preventDefault Escape for fullscreen, but we log it
+        logEvent("fullscreen_exit", "Escape pressed");
+        return;
+      }
       if (e.key === "F11") {
         e.preventDefault();
+        logEvent("fullscreen_exit", "F11 pressed");
         return;
       }
 
@@ -138,7 +121,6 @@ export function useCheatPrevention({
       if (blocked) {
         e.preventDefault();
         if (e.key === "PrintScreen") logEvent("copy_attempt", "PrintScreen");
-        if (e.ctrlKey && e.key.toLowerCase() === "x") logEvent("cut_attempt", "Ctrl+X");
       }
     };
 
@@ -161,7 +143,7 @@ export function useCheatPrevention({
       e.stopPropagation();
     };
 
-    // ── High security: block copy/paste/cut ─────────────────────────────────
+    // ── High security: block copy/paste ──────────────────────────────────────
     const onCopy = (e: ClipboardEvent) => {
       if (securityLevel === "high") {
         e.preventDefault();
@@ -174,17 +156,9 @@ export function useCheatPrevention({
         logEvent("paste_attempt");
       }
     };
-    const onCut = (e: ClipboardEvent) => {
-      if (securityLevel === "high") {
-        e.preventDefault();
-        logEvent("cut_attempt");
-      }
-    };
 
-    // ── Prevent drag (prevents drag-to-copy text) ───────────────────────────
-    const onDragStart = (e: DragEvent) => {
-      e.preventDefault();
-    };
+    // ── Prevent text drag (drag-to-copy) ─────────────────────────────────────
+    const onDragStart = (e: DragEvent) => { e.preventDefault(); };
 
     // ── Inactivity ───────────────────────────────────────────────────────────
     const activityEvents = ["mousemove", "keydown", "click", "touchstart"] as const;
@@ -192,15 +166,11 @@ export function useCheatPrevention({
     resetInactivity();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("blur", onWindowBlur);
-    document.addEventListener("mousedown", onMouseDown, true);
-    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu, true);
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
-    document.addEventListener("cut", onCut);
     document.addEventListener("dragstart", onDragStart, true);
 
     return () => {
@@ -208,22 +178,16 @@ export function useCheatPrevention({
       if (resizeTimer.current) clearTimeout(resizeTimer.current);
       readyRef.current = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("blur", onWindowBlur);
-      document.removeEventListener("mousedown", onMouseDown, true);
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu, true);
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
-      document.removeEventListener("cut", onCut);
       document.removeEventListener("dragstart", onDragStart, true);
       activityEvents.forEach((ev) =>
         document.removeEventListener(ev, resetInactivity)
       );
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      // Exit browser fullscreen if somehow still active
-      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     };
   }, [enabled, securityLevel, logEvent, resetInactivity, requestFullscreen]);
 
