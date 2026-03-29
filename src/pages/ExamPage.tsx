@@ -151,7 +151,8 @@ const ExamPage = () => {
   const warningOpenRef = useRef(false);
   const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; total: number } | null>(null);
   const [fullscreenReady, setFullscreenReady] = useState(false);
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  // Track fullscreen request state to show loading on button
+  const [fsRequesting, setFsRequesting] = useState(false);
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
@@ -363,15 +364,35 @@ const ExamPage = () => {
             </p>
             <Button
               type="button"
-              className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base"
-              onClick={() => {
+              disabled={fsRequesting}
+              className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base disabled:opacity-70"
+              onMouseDown={() => {
+                // Trigger fullscreen on mousedown — the earliest user gesture point.
+                // This MUST be synchronous and the very first call in the handler.
+                setFsRequesting(true);
+                document.documentElement.setAttribute("tabindex", "-1");
+                // Fire-and-forget: don't await — keep it synchronous in the gesture chain
                 document.documentElement
                   .requestFullscreen({ navigationUI: "hide" })
-                  .catch(() => {});
-                setFullscreenReady(true);
+                  .then(() => {
+                    // Fullscreen granted — proceed
+                    setFullscreenReady(true);
+                    setFsRequesting(false);
+                  })
+                  .catch(() => {
+                    // Fullscreen denied (mobile / blocked) — proceed anyway without fullscreen
+                    setFullscreenReady(true);
+                    setFsRequesting(false);
+                  });
               }}
             >
-              Enter Fullscreen &amp; Start Exam
+              {fsRequesting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Starting…
+                </span>
+              ) : (
+                "Enter Fullscreen & Start Exam"
+              )}
             </Button>
             <p className="text-xs text-slate-400 mt-3">
               If fullscreen is blocked by your browser, the exam will still run.
