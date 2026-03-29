@@ -545,7 +545,7 @@ const ExamPage = () => {
               <Button
                 type="button"
                 onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                onClick={() => handleSubmit(false)}
+                onClick={() => setShowSubmitConfirm(true)}
                 disabled={!allAnswered || submitting}
                 className="gap-2 bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-0"
               >
