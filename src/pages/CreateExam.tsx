@@ -62,7 +62,7 @@ const CreateExam = () => {
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
           .from("questions")
-          .select("*")
+          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
           .eq("exam_id", examId)
           .order("question_order");
 
@@ -104,7 +104,8 @@ const CreateExam = () => {
           });
           setBlocks(rebuiltBlocks);
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to load exam:", err);
         toast({ title: "Failed to load exam", variant: "destructive" });
         navigate("/teacher");
       }
@@ -399,7 +400,12 @@ const CreateExam = () => {
             <p className="text-sm text-muted-foreground mb-4">
               Build your exam using sections. Each section can have instructions, a reading passage, an image, and multiple questions.
             </p>
-            <ExamBlockEditor blocks={blocks} onChange={setBlocks} />
+            {/* key forces full remount when editing so all fields populate correctly */}
+            <ExamBlockEditor
+              key={isEditing ? `edit-${examId}` : "create"}
+              blocks={blocks}
+              onChange={setBlocks}
+            />
           </motion.div>
         )}
 
