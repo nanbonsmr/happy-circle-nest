@@ -37,7 +37,7 @@ const CreateExam = () => {
   // Step 2 — block-based editor
   const [blocks, setBlocks] = useState<ExamBlock[]>([newBlock()]);
 
-  // Check auth
+  // Check auth + load exam if editing
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate("/login");
@@ -67,27 +67,38 @@ const CreateExam = () => {
           .order("question_order");
 
         if (qs?.length) {
-          // Group questions by block_id
-          const blockMap = new Map<string, typeof qs>();
+          // Group questions by block_id, preserving block_order for sorting
+          const blockMap = new Map<string, { blockOrder: number; questions: any[] }>();
           qs.forEach((q: any) => {
             const bid = q.block_id || "default";
-            if (!blockMap.has(bid)) blockMap.set(bid, []);
-            blockMap.get(bid)!.push(q);
+            if (!blockMap.has(bid)) {
+              blockMap.set(bid, { blockOrder: q.block_order ?? 0, questions: [] });
+            }
+            blockMap.get(bid)!.questions.push(q);
           });
 
-          const rebuiltBlocks: ExamBlock[] = Array.from(blockMap.entries()).map(([bid, bqs]) => {
+          // Sort blocks by block_order
+          const sortedBlocks = Array.from(blockMap.entries())
+            .sort((a, b) => a[1].blockOrder - b[1].blockOrder);
+
+          const rebuiltBlocks: ExamBlock[] = sortedBlocks.map(([bid, { questions: bqs }], idx) => {
             const first = bqs[0] as any;
             return {
-              id: bid === "default" ? String(Date.now() + Math.random()) : bid,
+              id: bid === "default" ? `block-${idx}-${Date.now()}` : bid,
               instructions: first.instructions || "",
               paragraph: first.paragraph || "",
               imageUrl: first.image_url || "",
               imageCaption: first.image_caption || "",
-              questions: bqs.map((q: any) => ({
-                id: String(Date.now() + Math.random()),
-                text: q.question_text,
-                options: [q.option_a, q.option_b, q.option_c, q.option_d],
-                correctAnswer: q.correct_answer,
+              questions: bqs.map((q: any, qi: number) => ({
+                id: `q-${idx}-${qi}-${Date.now()}`,
+                text: q.question_text || "",
+                options: [
+                  q.option_a || "",
+                  q.option_b || "",
+                  q.option_c || "",
+                  q.option_d || "",
+                ],
+                correctAnswer: q.correct_answer || "",
               })),
             };
           });
