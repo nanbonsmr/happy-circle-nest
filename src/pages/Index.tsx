@@ -2,64 +2,35 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Users,
-  ShieldCheck,
-  ArrowRight,
-  Zap,
-  BarChart3,
-  BookOpen,
-  CheckCircle2,
-  Menu,
-  X,
+  Users, ShieldCheck, ArrowRight, Zap, BarChart3,
+  BookOpen, CheckCircle2, Menu, X, Clock, Award, TrendingUp,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import logo from "@/assets/logo.png";
+import { useFullscreenOnEntry } from "@/hooks/useFullscreenOnEntry";
 
 const features = [
-  {
-    icon: BookOpen,
-    title: "Create Exams Easily",
-    description:
-      "Build exams with multiple choice questions, set time limits, and publish with one click.",
-  },
-  {
-    icon: Users,
-    title: "Seamless Student Access",
-    description:
-      "Students join via unique access codes. No registration required — just enter and go.",
-  },
-  {
-    icon: Zap,
-    title: "Real-time Sync",
-    description:
-      "All students start simultaneously when the teacher begins the exam. Live progress tracking.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Secure & Reliable",
-    description:
-      "Auto-save answers, countdown timers, and anti-cheat measures built in.",
-  },
-  {
-    icon: BarChart3,
-    title: "Instant Analytics",
-    description:
-      "View detailed results, performance charts, and export reports instantly.",
-  },
-  {
-    icon: CheckCircle2,
-    title: "Auto Grading",
-    description:
-      "Results are calculated and delivered the moment the exam ends. No manual marking.",
-  },
+  { icon: BookOpen, title: "Create Exams Easily", description: "Build exams with multiple choice questions, set time limits, and publish with one click.", color: "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white" },
+  { icon: Users, title: "Seamless Student Access", description: "Students join via unique access codes. No registration required — just enter and go.", color: "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white" },
+  { icon: Zap, title: "Real-time Sync", description: "All students start simultaneously when the teacher begins the exam. Live progress tracking.", color: "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white" },
+  { icon: ShieldCheck, title: "Secure & Reliable", description: "Auto-save answers, countdown timers, and anti-cheat measures built in.", color: "bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white" },
+  { icon: BarChart3, title: "Instant Analytics", description: "View detailed results, performance charts, and export reports instantly.", color: "bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white" },
+  { icon: CheckCircle2, title: "Auto Grading", description: "Results are calculated and delivered the moment the exam ends. No manual marking.", color: "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white" },
 ];
 
 const stats = [
-  { value: "100%", label: "Paperless" },
-  { value: "< 1min", label: "Setup Time" },
-  { value: "Real-time", label: "Results" },
-  { value: "Secure", label: "& Reliable" },
+  { value: "100%", label: "Paperless", icon: Award },
+  { value: "< 1min", label: "Setup Time", icon: Clock },
+  { value: "Real-time", label: "Results", icon: TrendingUp },
+  { value: "Secure", label: "& Reliable", icon: ShieldCheck },
+];
+
+const howItWorks = [
+  { step: "01", title: "Teacher Creates Exam", desc: "Set up questions, time limits, and security level in minutes." },
+  { step: "02", title: "Students Join Instantly", desc: "Share the exam key — students enter with their Student ID, no signup needed." },
+  { step: "03", title: "Results Delivered", desc: "Scores are calculated automatically and sent to students via email." },
 ];
 
 const Index = () => {
@@ -67,290 +38,265 @@ const Index = () => {
   const [examKey, setExamKey] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Auto-fullscreen on landing page entry (silently fails if browser blocks it)
+  useFullscreenOnEntry();
+
   const handleExamKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const key = examKey.trim();
-    if (key) {
-      // Route through /student so validation happens cleanly
-      navigate(`/exam/${key}`);
-    }
+    if (key) navigate(`/exam/${key}`);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-[#0f172a]">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-[#1e3a5f] shadow-lg">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+
+      {/* ── Navbar ─────────────────────────────────────────────────────────── */}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
-            <img
-              src={logo}
-              alt="NejoExamPrep Logo"
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20"
-            />
-            <span className="text-base font-bold text-white tracking-tight">
-              NejoExamPrep
-            </span>
+            <img src={logo} alt="NejoExamPrep" className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100" />
+            <span className="text-base font-bold text-[#0F172A] tracking-tight">NejoExamPrep</span>
           </Link>
 
-          {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-3">
-            <form
-              onSubmit={handleExamKeySubmit}
-              className="flex items-center gap-2"
-            >
-              <Input
-                placeholder="Enter exam key"
-                value={examKey}
-                onChange={(e) => setExamKey(e.target.value)}
-                className="h-9 w-44 bg-white/10 border-white/20 text-white placeholder:text-white/50 text-sm focus-visible:ring-white/30"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                className="h-9 bg-[#f59e0b] hover:bg-[#d97706] text-white border-0 font-semibold"
-              >
+            <a href="#features" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">Features</a>
+            <a href="#how-it-works" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">How it works</a>
+            <div className="w-px h-5 bg-slate-200" />
+            <form onSubmit={handleExamKeySubmit} className="flex items-center gap-2">
+              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)}
+                className="h-9 w-40 text-sm border-slate-200 focus-visible:ring-[#2563EB]" />
+              <Button type="submit" size="sm" className="h-9 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">
                 Go <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </form>
-            <div className="w-px h-6 bg-white/20" />
-            <Button
-              asChild
-              className="h-9 bg-white text-[#1e3a5f] hover:bg-white/90 font-semibold text-sm"
-            >
+            <Button asChild className="h-9 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold text-sm">
               <Link to="/login">Sign In</Link>
             </Button>
           </div>
 
-          {/* Mobile menu toggle */}
-          <button
-            className="md:hidden text-white p-1"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
+          <button type="button" className="md:hidden text-slate-600 p-1" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
 
-        {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-[#162d4a] border-t border-white/10 px-4 py-4 space-y-3">
-            <form
-              onSubmit={handleExamKeySubmit}
-              className="flex items-center gap-2"
-            >
-              <Input
-                placeholder="Enter exam key"
-                value={examKey}
-                onChange={(e) => setExamKey(e.target.value)}
-                className="flex-1 h-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-              />
-              <Button
-                type="submit"
-                className="h-10 bg-[#f59e0b] hover:bg-[#d97706] text-white border-0 font-semibold"
-              >
-                Go
-              </Button>
+          <div className="md:hidden bg-white border-t border-slate-100 px-4 py-4 space-y-3">
+            <form onSubmit={handleExamKeySubmit} className="flex gap-2">
+              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)} className="flex-1 h-10" />
+              <Button type="submit" className="h-10 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">Go</Button>
             </form>
-            <Button
-              asChild
-              className="w-full h-10 bg-white text-[#1e3a5f] hover:bg-white/90 font-semibold"
-            >
+            <Button asChild className="w-full h-10 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold">
               <Link to="/login">Sign In</Link>
             </Button>
           </div>
         )}
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1e3a5f] via-[#1e4976] to-[#1a3a6b]">
-        {/* Decorative blobs */}
-        <div className="absolute top-0 right-0 w-72 h-72 bg-[#f59e0b]/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#EFF6FF] via-[#F8FAFC] to-[#F0FDF4]">
+        {/* Floating shapes */}
+        <div className="absolute top-10 right-10 w-80 h-80 bg-[#2563EB]/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#22C55E]/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-indigo-100/40 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
         <div className="container relative py-16 sm:py-20 md:py-28">
-          <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-center">
+          <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+
             {/* Left */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <span className="inline-block mb-4 px-3 py-1 rounded-full bg-[#f59e0b]/20 text-[#f59e0b] text-xs font-semibold tracking-wide uppercase">
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
+              <motion.span
+                initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+                className="inline-flex items-center gap-2 mb-5 px-4 py-1.5 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-xs font-semibold tracking-wide uppercase border border-[#2563EB]/20"
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
                 Nejo Ifa Boru Special Boarding Secondary School
-              </span>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
-                Modern Online
-                <span className="block text-[#f59e0b]">Exam Platform</span>
+              </motion.span>
+
+              <h1 className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#0F172A] leading-tight">
+                Prepare Smarter.{" "}
+                <span className="text-[#2563EB]">Score Higher.</span>
+                <span className="block mt-1 text-[#22C55E]">Succeed Faster.</span>
               </h1>
-              <p className="mt-5 text-base sm:text-lg text-blue-100/80 max-w-lg leading-relaxed">
-                Create, manage, and deliver secure exams with real-time
-                monitoring. Built for teachers, designed for students.
+
+              <p className="mt-6 text-base sm:text-lg text-slate-600 max-w-lg leading-relaxed">
+                Create, manage, and deliver secure exams with real-time monitoring and instant results. Built for teachers, designed for students.
               </p>
+
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button
-                  size="lg"
-                  asChild
-                  className="h-12 px-8 bg-[#f59e0b] hover:bg-[#d97706] text-white border-0 font-semibold text-base rounded-xl shadow-lg shadow-amber-500/25"
-                >
-                  <Link to="/login">Get Started</Link>
+                <Button size="lg" asChild
+                  className="h-13 px-8 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-bold text-base rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-blue-500/30">
+                  <Link to="/login">
+                    Start Practicing <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  asChild
-                  className="h-12 px-8 border-white/30 text-white hover:bg-white/10 text-base rounded-xl"
-                >
-                  <a href="#features">Learn More</a>
+                <Button size="lg" variant="outline" asChild
+                  className="h-13 px-8 border-2 border-slate-200 text-slate-700 hover:border-[#2563EB] hover:text-[#2563EB] text-base rounded-xl font-semibold transition-all">
+                  <a href="#how-it-works">Learn More</a>
                 </Button>
+              </div>
+
+              {/* Trust badges */}
+              <div className="mt-8 flex items-center gap-4 flex-wrap">
+                {["Anti-cheat system", "Real-time results", "Free to use"].map((badge) => (
+                  <div key={badge} className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#22C55E]" />
+                    {badge}
+                  </div>
+                ))}
               </div>
             </motion.div>
 
-            {/* Right — Student card */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex justify-center md:justify-end"
-            >
-              <Link to="/student" className="block w-full max-w-sm rounded-2xl bg-white shadow-2xl p-8 hover:shadow-3xl transition-shadow group">
-                <div className="text-center mb-6">
-                  <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-[#0f1e2e] flex items-center justify-center shadow-lg group-hover:bg-[#1a2e42] transition-colors">
-                    <BookOpen className="h-7 w-7 text-white" />
+            {/* Right — Student portal card */}
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.25 }}
+              className="flex justify-center md:justify-end">
+              <div className="w-full max-w-sm">
+                {/* Floating card effect */}
+                <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}>
+                  <Link to="/student" className="block rounded-2xl bg-white shadow-2xl shadow-blue-100/50 p-8 border border-slate-100 hover:shadow-3xl hover:border-[#2563EB]/20 transition-all group">
+                    <div className="text-center mb-6">
+                      <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#1d4ed8] flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
+                        <GraduationCap className="h-8 w-8 text-white" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#0F172A]">Student Portal</h3>
+                      <p className="text-sm text-slate-500 mt-1">Enter your exam key to begin</p>
+                    </div>
+                    <div className="flex gap-2 mb-4">
+                      <div className="flex-1 h-11 px-4 rounded-xl border-2 border-slate-200 text-sm text-slate-400 flex items-center bg-slate-50">
+                        Enter exam key…
+                      </div>
+                      <div className="h-11 px-5 rounded-xl bg-[#22C55E] text-white font-bold text-sm flex items-center shadow-md shadow-green-500/25">
+                        Next
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#22C55E] shrink-0" />
+                      <span>Protected by our cheat-prevention system</span>
+                    </div>
+                  </Link>
+                </motion.div>
+
+                {/* Decorative mini cards */}
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}
+                  className="absolute -right-4 top-1/3 hidden lg:block bg-white rounded-xl shadow-lg p-3 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[#0F172A]">Exam Submitted</p>
+                      <p className="text-xs text-slate-400">Score: 92%</p>
+                    </div>
                   </div>
-                  <h3 className="text-xl font-bold text-[#0f172a]">Student</h3>
-                  <p className="text-sm text-slate-500 mt-1">Enter your exam key to begin</p>
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 h-11 px-4 rounded-xl border-2 border-slate-200 text-sm text-slate-400 flex items-center">
-                    Enter exam key
-                  </div>
-                  <div className="h-11 px-5 rounded-xl bg-[#0f1e2e] text-white font-semibold text-sm flex items-center">
-                    Next
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
-                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                  <span>Read more about our cheat-prevention systems</span>
-                </div>
-              </Link>
+                </motion.div>
+              </div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Stats bar */}
-      <section className="bg-white border-b border-slate-100">
-        <div className="container py-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+      {/* ── Stats bar ──────────────────────────────────────────────────────── */}
+      <section className="bg-[#2563EB]">
+        <div className="container py-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
             {stats.map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="text-center"
-              >
-                <div className="text-xl sm:text-2xl font-extrabold text-[#1e3a5f]">
-                  {stat.value}
-                </div>
-                <div className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  {stat.label}
-                </div>
+              <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.08 }} className="text-center">
+                <div className="text-2xl sm:text-3xl font-extrabold text-white">{stat.value}</div>
+                <div className="text-xs sm:text-sm text-blue-200 mt-0.5">{stat.label}</div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="container py-16 sm:py-20 md:py-24">
+      {/* ── How it works ───────────────────────────────────────────────────── */}
+      <section id="how-it-works" className="container py-16 sm:py-20">
         <div className="text-center mb-12">
-          <span className="inline-block mb-3 px-3 py-1 rounded-full bg-[#1e3a5f]/10 text-[#1e3a5f] text-xs font-semibold tracking-wide uppercase">
-            Features
-          </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0f172a]">
-            Everything you need
-          </h2>
-          <p className="text-slate-500 mt-2 text-base max-w-md mx-auto">
-            Powerful tools for modern exam management, from creation to results.
-          </p>
+          <span className="inline-block mb-3 px-3 py-1 rounded-full bg-[#2563EB]/10 text-[#2563EB] text-xs font-semibold tracking-wide uppercase">How it works</span>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0F172A]">Simple. Fast. Effective.</h2>
+          <p className="text-slate-500 mt-2 max-w-md mx-auto">Get your exam running in under a minute.</p>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, i) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="group rounded-2xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md hover:border-[#1e3a5f]/20 transition-all"
-            >
-              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#1e3a5f]/10 text-[#1e3a5f] group-hover:bg-[#1e3a5f] group-hover:text-white transition-colors">
-                <feature.icon className="h-5 w-5" />
-              </div>
-              <h3 className="mb-2 font-semibold text-[#0f172a] text-base">
-                {feature.title}
-              </h3>
-              <p className="text-sm text-slate-500 leading-relaxed">
-                {feature.description}
-              </p>
+        <div className="grid sm:grid-cols-3 gap-6">
+          {howItWorks.map((step, i) => (
+            <motion.div key={step.step} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.12 }}
+              className="relative bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all">
+              <div className="text-5xl font-extrabold text-[#2563EB]/10 mb-3">{step.step}</div>
+              <h3 className="font-bold text-[#0F172A] text-lg mb-2">{step.title}</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">{step.desc}</p>
+              {i < howItWorks.length - 1 && (
+                <div className="hidden sm:block absolute -right-3 top-1/2 -translate-y-1/2 z-10">
+                  <ArrowRight className="h-5 w-5 text-slate-300" />
+                </div>
+              )}
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* CTA Banner */}
-      <section className="bg-[#1e3a5f] mx-4 sm:mx-8 md:mx-auto md:container rounded-2xl mb-16 overflow-hidden relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#1e3a5f] to-[#1a4a7a] pointer-events-none" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#f59e0b]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative px-6 sm:px-10 py-10 sm:py-14 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div>
-            <h3 className="text-xl sm:text-2xl font-bold text-white">
-              Ready to run your first exam?
-            </h3>
-            <p className="text-blue-200/70 mt-1 text-sm sm:text-base">
-              Sign in and create an exam in under a minute.
-            </p>
+      {/* ── Features ───────────────────────────────────────────────────────── */}
+      <section id="features" className="bg-slate-50 py-16 sm:py-20">
+        <div className="container">
+          <div className="text-center mb-12">
+            <span className="inline-block mb-3 px-3 py-1 rounded-full bg-[#22C55E]/10 text-[#16a34a] text-xs font-semibold tracking-wide uppercase">Features</span>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0F172A]">Everything you need</h2>
+            <p className="text-slate-500 mt-2 max-w-md mx-auto">Powerful tools for modern exam management, from creation to results.</p>
           </div>
-          <Button
-            asChild
-            size="lg"
-            className="shrink-0 h-12 px-8 bg-[#f59e0b] hover:bg-[#d97706] text-white border-0 font-semibold rounded-xl shadow-lg"
-          >
-            <Link to="/login">
-              Get Started <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, i) => (
+              <motion.div key={feature.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.08 }}
+                className="group rounded-2xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-lg hover:border-transparent hover:-translate-y-1 transition-all duration-300">
+                <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${feature.color}`}>
+                  <feature.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 font-bold text-[#0F172A] text-base">{feature.title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{feature.description}</p>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ── CTA Banner ─────────────────────────────────────────────────────── */}
+      <section className="container py-16">
+        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#2563EB] to-[#1d4ed8] p-10 sm:p-14 text-center">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#22C55E]/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white mb-3">
+              Ready to run your first exam?
+            </h2>
+            <p className="text-blue-200 mb-8 text-base max-w-md mx-auto">
+              Sign in and create a secure exam in under a minute. Free for schools.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button size="lg" asChild
+                className="h-12 px-8 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-bold text-base rounded-xl shadow-lg shadow-green-500/30 hover:scale-105 transition-all">
+                <Link to="/login">Start Practicing <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+              <Button size="lg" asChild variant="outline"
+                className="h-12 px-8 border-2 border-white/30 text-white hover:bg-white/10 text-base rounded-xl font-semibold">
+                <Link to="/student">Student Portal</Link>
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-100 bg-white py-8">
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-400">
           <div className="flex items-center gap-2">
-            <img
-              src={logo}
-              alt="Logo"
-              className="h-6 w-6 rounded-full object-cover"
-            />
-            <span className="font-medium text-slate-600">NejoExamPrep</span>
+            <img src={logo} alt="Logo" className="h-6 w-6 rounded-full object-cover" />
+            <span className="font-semibold text-slate-600">NejoExamPrep</span>
           </div>
-          <p>
-            © {new Date().getFullYear()} Nejo Ifa Boru Special Boarding
-            Secondary School
-          </p>
-          <Link
-            to="/login"
-            className="text-[#1e3a5f] hover:underline font-medium"
-          >
-            Teacher Sign In
-          </Link>
+          <p>© {new Date().getFullYear()} Nejo Ifa Boru Special Boarding Secondary School</p>
+          <Link to="/login" className="text-[#2563EB] hover:underline font-medium">Teacher Sign In</Link>
         </div>
       </footer>
+
     </div>
   );
 };
