@@ -137,7 +137,15 @@ const AdminDashboard = () => {
         if (!teacherEmail.trim()) return;
         const { error } = await supabase.auth.signUp({ email: teacherEmail.trim(), password: teacherPassword, options: { data: { full_name: teacherName } } });
         if (error) throw error;
-        toast({ title: "Teacher added!", description: `Credentials: ${teacherEmail} / ${teacherPassword}` });
+        // Send credentials email via Brevo
+        try {
+          await supabase.functions.invoke("send-teacher-credentials", {
+            body: { teacherName, teacherEmail: teacherEmail.trim(), password: teacherPassword },
+          });
+          toast({ title: "Teacher added!", description: `Credentials sent to ${teacherEmail}` });
+        } catch {
+          toast({ title: "Teacher added!", description: `Email sending failed. Credentials: ${teacherEmail} / ${teacherPassword}` });
+        }
       }
       setShowTeacherDialog(false);
       await loadData();
