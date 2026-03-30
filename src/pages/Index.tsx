@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import logo from "@/assets/logo.png";
-import { useFullscreenOnEntry } from "@/hooks/useFullscreenOnEntry";
 
 const features = [
   { icon: BookOpen, title: "Create Exams Easily", description: "Build exams with multiple choice questions, set time limits, and publish with one click.", color: "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white" },
@@ -37,9 +36,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [examKey, setExamKey] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Auto-fullscreen on landing page entry (silently fails if browser blocks it)
-  useFullscreenOnEntry();
+  const [fsEntered, setFsEntered] = useState(false);
 
   const handleExamKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +44,47 @@ const Index = () => {
     if (key) navigate(`/exam/${key}`);
   };
 
+  const enterFullscreen = () => {
+    document.documentElement
+      .requestFullscreen({ navigationUI: "hide" })
+      .catch(() => {})
+      .finally(() => setFsEntered(true));
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+
+      {/* ── Fullscreen entry overlay — shown until user clicks ─────────────── */}
+      {!fsEntered && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-[#1e3a5f] to-[#1a4a7a] cursor-pointer"
+          onClick={enterFullscreen}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center px-6"
+          >
+            <div className="mx-auto mb-6 h-20 w-20 rounded-2xl bg-white/10 flex items-center justify-center">
+              <img src={logo} alt="NejoExamPrep" className="h-12 w-12 rounded-full object-cover" />
+            </div>
+            <h1 className="text-3xl font-extrabold text-white mb-3">NejoExamPrep</h1>
+            <p className="text-blue-200 text-base mb-8 max-w-sm mx-auto">
+              Nejo Ifa Boru Special Boarding Secondary School
+            </p>
+            <motion.div
+              animate={{ scale: [1, 1.04, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-[#22C55E] text-white font-bold text-lg shadow-xl shadow-green-500/30"
+            >
+              <ArrowRight className="h-5 w-5" />
+              Click to Enter
+            </motion.div>
+            <p className="text-blue-300/60 text-xs mt-4">Click anywhere to continue in fullscreen</p>
+          </motion.div>
+        </div>
+      )}
 
       {/* ── Navbar ─────────────────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">
