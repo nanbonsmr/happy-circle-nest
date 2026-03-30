@@ -204,8 +204,7 @@ const ExamPage = () => {
   const totalViolationsRef = useRef(0);
   const warningOpenRef = useRef(false);
   const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; total: number } | null>(null);
-  const [fullscreenReady, setFullscreenReady] = useState(false);
-  const [fsRequesting, setFsRequesting] = useState(false);
+  const [fullscreenReady] = useState(true); // No gate screen — CSS overlay handles visual fullscreen
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [ejectedByViolation, setEjectedByViolation] = useState(false);
 
@@ -466,60 +465,6 @@ const ExamPage = () => {
             <p className="text-muted-foreground">This exam has no questions yet.</p>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  // ── Fullscreen gate — shown before exam starts ───────────────────────────
-  if (!fullscreenReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1e3a5f] p-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-sm"
-        >
-          <div className="rounded-2xl bg-white shadow-2xl p-8 text-center">
-            <div className="mx-auto mb-5 h-16 w-16 rounded-2xl bg-[#1e3a5f] flex items-center justify-center">
-              <ShieldCheck className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-xl font-bold text-[#0f172a] mb-2">Ready to Begin?</h2>
-            <p className="text-slate-500 text-sm mb-6">
-              The exam will open in fullscreen mode. Do not exit fullscreen during the exam — it will be counted as a violation.
-            </p>
-            <Button
-              type="button"
-              disabled={fsRequesting}
-              className="w-full h-12 bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-semibold rounded-xl text-base disabled:opacity-70"
-              onMouseDown={() => {
-                setFsRequesting(true);
-                document.documentElement.setAttribute("tabindex", "-1");
-                // Enter real fullscreen for the visual transition effect only,
-                // then immediately exit it. The CSS overlay (fixed inset-0) takes
-                // over — no browser fullscreen session = zero exit-on-click issues.
-                document.documentElement
-                  .requestFullscreen({ navigationUI: "hide" })
-                  .then(() => document.exitFullscreen())
-                  .catch(() => {})
-                  .finally(() => {
-                    setFullscreenReady(true);
-                    setFsRequesting(false);
-                  });
-              }}
-            >
-              {fsRequesting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Starting…
-                </span>
-              ) : (
-                "Enter Fullscreen & Start Exam"
-              )}
-            </Button>
-            <p className="text-xs text-slate-400 mt-3">
-              If fullscreen is blocked by your browser, the exam will still run.
-            </p>
-          </div>
-        </motion.div>
       </div>
     );
   }
