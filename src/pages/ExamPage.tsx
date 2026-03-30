@@ -387,6 +387,8 @@ const ExamPage = () => {
     const sid = sessionStorage.getItem("session_id");
     if (sid) sessionStorage.setItem(`q_pos_${sid}`, String(currentQuestion));
   }, [currentQuestion]);
+
+  const saveAnswer = useCallback(async (questionId: string, selectedAnswer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
     const sid = sessionStorage.getItem("session_id");
     if (!sid) return;
