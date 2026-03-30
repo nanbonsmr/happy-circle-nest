@@ -270,9 +270,9 @@ const TeacherDashboard = () => {
         const cloned = qs.map((q: any) => ({ ...q, id: undefined, exam_id: newExam.id, created_at: undefined }));
         await supabase.from("questions").insert(cloned);
       }
-      const { data: fresh } = await supabase.from("exams").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
-      setExams(fresh || []);
-      toast({ title: "Exam cloned!", description: `"${exam.title} (Copy)" is ready to edit.` });
+      // Navigate to edit page so teacher can review and modify before publishing
+      navigate(`/teacher/edit/${newExam.id}`);
+      toast({ title: "Exam cloned!", description: "Review and edit before publishing." });
     } catch (err: any) {
       toast({ title: "Clone failed", description: err.message, variant: "destructive" });
     }
