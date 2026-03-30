@@ -95,11 +95,11 @@ const StudentAccess = () => {
       if (examError || !exam) throw new Error("Exam not found or not available. Please check your access code.");
 
       // Block duplicate sessions — prevent anyone from joining with an already-used student ID
-      const { data: activeSession } = await supabase
+      const { data: activeSession } = await (supabase
         .from("exam_sessions")
-        .select("id, status")
+        .select("id, status") as any)
         .eq("exam_id", exam.id)
-        .eq("student_registry_id" as any, verifiedStudent.id)
+        .eq("student_registry_id", verifiedStudent.id)
         .in("status", ["waiting", "in_progress", "submitted"])
         .maybeSingle();
 

@@ -151,7 +151,7 @@ const TeacherDashboard = () => {
     setReportsLoading(true);
     try {
       const examIds = exams.map((e) => e.id);
-      const { data: sessions } = await supabase.from("exam_sessions").select("*, ejected_by_violation").in("exam_id", examIds);
+      const { data: sessions } = await supabase.from("exam_sessions").select("id, student_name, student_email, exam_id, score, total_marks, status, submitted_at, ejected_by_violation").in("exam_id", examIds);
       if (!sessions?.length) { setReports([]); setReportsLoading(false); return; }
       const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);

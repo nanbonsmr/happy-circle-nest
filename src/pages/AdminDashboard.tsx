@@ -123,6 +123,19 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
+  const handleExamStatusChange = async (examId: string, newStatus: string) => {
+    try {
+      const updateData: any = { status: newStatus };
+      if (newStatus === "active") updateData.started_at = new Date().toISOString();
+      const { error } = await supabase.from("exams").update(updateData).eq("id", examId);
+      if (error) throw error;
+      toast({ title: "Status updated", description: `Exam status changed to ${newStatus}` });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const openAddTeacher = () => { setEditingTeacher(null); setTeacherName(""); setTeacherEmail(""); setTeacherPassword(Math.random().toString(36).slice(2, 10)); setShowTeacherDialog(true); };
   const openEditTeacher = (t: TeacherRow) => { setEditingTeacher(t); setTeacherName(t.full_name === "—" ? "" : t.full_name); setTeacherEmail(t.email); setTeacherPassword(""); setShowTeacherDialog(true); };
 
@@ -137,7 +150,15 @@ const AdminDashboard = () => {
         if (!teacherEmail.trim()) return;
         const { error } = await supabase.auth.signUp({ email: teacherEmail.trim(), password: teacherPassword, options: { data: { full_name: teacherName } } });
         if (error) throw error;
-        toast({ title: "Teacher added!", description: `Credentials: ${teacherEmail} / ${teacherPassword}` });
+        // Send credentials email via Brevo
+        try {
+          await supabase.functions.invoke("send-teacher-credentials", {
+            body: { teacherName, teacherEmail: teacherEmail.trim(), password: teacherPassword },
+          });
+          toast({ title: "Teacher added!", description: `Credentials sent to ${teacherEmail}` });
+        } catch {
+          toast({ title: "Teacher added!", description: `Email sending failed. Credentials: ${teacherEmail} / ${teacherPassword}` });
+        }
       }
       setShowTeacherDialog(false);
       await loadData();
@@ -476,7 +497,16 @@ const AdminDashboard = () => {
                       <td className="px-4 py-3.5 text-slate-500">{e.duration_minutes} min</td>
                       <td className="px-4 py-3.5 font-mono text-xs text-slate-500">{e.access_code}</td>
                       <td className="px-4 py-3.5">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColors[e.status] || statusColors.draft}`}>{e.status}</span>
+                        <select
+                          value={e.status}
+                          onChange={(ev) => handleExamStatusChange(e.id, ev.target.value)}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize border-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 ${statusColors[e.status] || statusColors.draft}`}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                        </select>
                       </td>
                     </tr>
                   ))}
