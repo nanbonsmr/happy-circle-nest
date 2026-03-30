@@ -12,10 +12,12 @@ function mulberry32(seed: number) {
   };
 }
 
-/** Convert a numeric seed string to a number */
-export function parseSeed(seed: string): number {
-  const n = parseInt(seed, 10);
-  return isNaN(n) ? 0 : Math.abs(n);
+/** Convert a numeric seed string to a number. Returns null if invalid/empty. */
+export function parseSeed(seed: string): number | null {
+  const trimmed = seed.trim();
+  if (!trimmed) return null;
+  const n = parseInt(trimmed, 10);
+  return isNaN(n) ? null : Math.abs(n);
 }
 
 /**
@@ -34,24 +36,28 @@ export function seededShuffle<T>(arr: T[], seed: number): T[] {
 
 /**
  * Shuffle answer options for a question while preserving the correct answer mapping.
- * Returns shuffled options array and the new correct answer key (A/B/C/D).
+ * Tracks by index (not text) so duplicate option texts are handled correctly.
  */
 export function shuffleOptions(
   options: { key: string; text: string }[],
   correctKey: string,
   seed: number
 ): { shuffled: { key: string; text: string }[]; newCorrectKey: string } {
-  // Shuffle the option texts
-  const texts = options.map((o) => o.text);
-  const shuffledTexts = seededShuffle(texts, seed);
-
-  // Find which position the correct answer text ended up in
-  const correctText = options.find((o) => o.key === correctKey)?.text || "";
-  const newCorrectIndex = shuffledTexts.indexOf(correctText);
   const keys = ["A", "B", "C", "D"];
 
+  // Build index array [0,1,2,3] and shuffle it
+  const indices = [0, 1, 2, 3];
+  const shuffledIndices = seededShuffle(indices, seed);
+
+  // Find which shuffled position the correct answer ended up in
+  const correctIndex = options.findIndex((o) => o.key === correctKey);
+  const newCorrectPosition = shuffledIndices.indexOf(correctIndex);
+
   return {
-    shuffled: shuffledTexts.map((text, i) => ({ key: keys[i], text })),
-    newCorrectKey: keys[newCorrectIndex] || correctKey,
+    shuffled: shuffledIndices.map((origIdx, newPos) => ({
+      key: keys[newPos],
+      text: options[origIdx].text,
+    })),
+    newCorrectKey: keys[newCorrectPosition] ?? correctKey,
   };
 }

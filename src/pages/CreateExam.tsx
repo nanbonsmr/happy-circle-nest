@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Users,
@@ -18,9 +18,12 @@ const steps = ["Exam Details", "Add Questions", "Review & Publish"];
 
 const CreateExam = () => {
   const navigate = useNavigate();
+  const { examId } = useParams<{ examId?: string }>();
+  const isEditing = !!examId;
   const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loadingExam, setLoadingExam] = useState(isEditing);
 
   // Step 1
   const [title, setTitle] = useState("");
@@ -40,6 +43,64 @@ const CreateExam = () => {
       if (!session) navigate("/login");
     });
   }, [navigate]);
+
+  // Load existing exam data when editing a cloned exam
+  useEffect(() => {
+    if (!examId) return;
+    const loadExam = async () => {
+      try {
+        const { data: exam } = await supabase.from("exams").select("*").eq("id", examId).single();
+        if (!exam) { navigate("/teacher"); return; }
+
+        setTitle(exam.title);
+        setSubject(exam.subject || "");
+        setDuration(String(exam.duration_minutes));
+        setMaxParticipants(exam.max_participants ? String(exam.max_participants) : "");
+        setAccessCode(exam.access_code);
+        setSecurityLevel(((exam as any).security_level as "low" | "high") || "low");
+
+        // Load questions and rebuild blocks
+        const { data: qs } = await supabase
+          .from("questions")
+          .select("*")
+          .eq("exam_id", examId)
+          .order("question_order");
+
+        if (qs?.length) {
+          // Group questions by block_id
+          const blockMap = new Map<string, typeof qs>();
+          qs.forEach((q: any) => {
+            const bid = q.block_id || "default";
+            if (!blockMap.has(bid)) blockMap.set(bid, []);
+            blockMap.get(bid)!.push(q);
+          });
+
+          const rebuiltBlocks: ExamBlock[] = Array.from(blockMap.entries()).map(([bid, bqs]) => {
+            const first = bqs[0] as any;
+            return {
+              id: bid === "default" ? String(Date.now() + Math.random()) : bid,
+              instructions: first.instructions || "",
+              paragraph: first.paragraph || "",
+              imageUrl: first.image_url || "",
+              imageCaption: first.image_caption || "",
+              questions: bqs.map((q: any) => ({
+                id: String(Date.now() + Math.random()),
+                text: q.question_text,
+                options: [q.option_a, q.option_b, q.option_c, q.option_d],
+                correctAnswer: q.correct_answer,
+              })),
+            };
+          });
+          setBlocks(rebuiltBlocks);
+        }
+      } catch {
+        toast({ title: "Failed to load exam", variant: "destructive" });
+        navigate("/teacher");
+      }
+      setLoadingExam(false);
+    };
+    loadExam();
+  }, [examId, navigate, toast]);
 
   const generateUniqueCode = () => {
     const ts = Date.now().toString(36).toUpperCase();
@@ -64,7 +125,8 @@ const CreateExam = () => {
 
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
-      if (existing) { code = generateUniqueCode(); setAccessCode(code); }
+      // Only generate new code if it conflicts with a DIFFERENT exam
+      if (existing && existing.id !== examId) { code = generateUniqueCode(); setAccessCode(code); }
 
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
@@ -77,15 +139,25 @@ const CreateExam = () => {
         security_level: securityLevel,
       };
 
-      const result = await supabase.from("exams").insert(insertPayload as any).select().single();
-      let exam = result.data;
-      let examError = result.error;
+      let exam: any = null;
+      let examError: any = null;
 
-      if (examError && examError.message?.includes("security_level")) {
-        const { security_level: _sl, ...payloadWithout } = insertPayload;
-        const retry = await supabase.from("exams").insert(payloadWithout as any).select().single();
-        exam = retry.data;
-        examError = retry.error;
+      if (isEditing && examId) {
+        // Update existing exam
+        const { data, error } = await supabase.from("exams")
+          .update({ ...insertPayload, teacher_id: undefined } as any)
+          .eq("id", examId).select().single();
+        exam = data; examError = error;
+        // Delete old questions before reinserting
+        if (!examError) await supabase.from("questions").delete().eq("exam_id", examId);
+      } else {
+        const result = await supabase.from("exams").insert(insertPayload as any).select().single();
+        exam = result.data; examError = result.error;
+        if (examError && examError.message?.includes("security_level")) {
+          const { security_level: _sl, ...payloadWithout } = insertPayload;
+          const retry = await supabase.from("exams").insert(payloadWithout as any).select().single();
+          exam = retry.data; examError = retry.error;
+        }
       }
       if (examError) throw examError;
 
@@ -93,7 +165,7 @@ const CreateExam = () => {
       let globalOrder = 0;
       const questionsToInsert: any[] = [];
       const seed = parseSeed(randomSeed);
-      const hasSeed = randomSeed.trim() !== "" && seed > 0;
+      const hasSeed = seed !== null;
 
       // Shuffle question order across all blocks if seed provided
       let allBlockQuestions: { block: ExamBlock; qi: number; bi: number }[] = [];
@@ -103,7 +175,7 @@ const CreateExam = () => {
         });
       });
       if (hasSeed) {
-        allBlockQuestions = seededShuffle(allBlockQuestions, seed);
+        allBlockQuestions = seededShuffle(allBlockQuestions, seed!);
       }
 
       allBlockQuestions.forEach(({ block, qi, bi }) => {
@@ -123,7 +195,7 @@ const CreateExam = () => {
             { key: "D", text: optD },
           ];
           // Use a per-question seed derived from main seed + question index
-          const { shuffled, newCorrectKey } = shuffleOptions(opts, correctAnswer, seed + globalOrder);
+          const { shuffled, newCorrectKey } = shuffleOptions(opts, correctAnswer, seed! + globalOrder);
           optA = shuffled[0].text;
           optB = shuffled[1].text;
           optC = shuffled[2].text;
@@ -153,7 +225,7 @@ const CreateExam = () => {
       const { error: qError } = await supabase.from("questions").insert(questionsToInsert);
       if (qError) throw qError;
 
-      toast({ title: "Exam Published!", description: "Students can now access the exam using the link." });
+      toast({ title: isEditing ? "Exam Updated!" : "Exam Published!", description: "Students can now access the exam using the link." });
       navigate("/teacher");
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -162,7 +234,15 @@ const CreateExam = () => {
     }
   };
 
-  const examLink = `https://nejoexamprep.netlify.app/exam/${accessCode}`;
+  const examLink = `https://nejoexamprep.vercel.app/exam/${accessCode}`;
+
+  if (loadingExam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -171,7 +251,7 @@ const CreateExam = () => {
           <Button variant="ghost" size="icon" asChild>
             <Link to="/teacher"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <h1 className="font-semibold">Create Exam</h1>
+          <h1 className="font-semibold">{isEditing ? "Edit Exam" : "Create Exam"}</h1>
         </div>
       </header>
 
@@ -419,7 +499,7 @@ const CreateExam = () => {
             </Button>
           ) : (
             <Button onClick={handlePublish} disabled={saving} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
-              {saving ? "Publishing..." : <><Check className="h-4 w-4" /> Publish Exam</>}
+              {saving ? (isEditing ? "Saving..." : "Publishing...") : <><Check className="h-4 w-4" /> {isEditing ? "Save Changes" : "Publish Exam"}</>}
             </Button>
           )}
         </div>
