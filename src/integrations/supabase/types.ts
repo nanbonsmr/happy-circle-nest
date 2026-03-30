@@ -46,39 +46,10 @@ export type Database = {
           },
         ]
       }
-      students: {
-        Row: {
-          id: string
-          student_id: string
-          full_name: string
-          email: string
-          grade: string
-          created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          student_id: string
-          full_name: string
-          email?: string
-          grade?: string
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          student_id?: string
-          full_name?: string
-          email?: string
-          grade?: string
-          created_by?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
       exam_sessions: {
         Row: {
           created_at: string
+          ejected_by_violation: boolean
           exam_id: string
           id: string
           score: number | null
@@ -86,11 +57,13 @@ export type Database = {
           status: string
           student_email: string
           student_name: string
+          student_registry_id: string | null
           submitted_at: string | null
           total_marks: number | null
         }
         Insert: {
           created_at?: string
+          ejected_by_violation?: boolean
           exam_id: string
           id?: string
           score?: number | null
@@ -98,11 +71,13 @@ export type Database = {
           status?: string
           student_email: string
           student_name: string
+          student_registry_id?: string | null
           submitted_at?: string | null
           total_marks?: number | null
         }
         Update: {
           created_at?: string
+          ejected_by_violation?: boolean
           exam_id?: string
           id?: string
           score?: number | null
@@ -110,6 +85,7 @@ export type Database = {
           status?: string
           student_email?: string
           student_name?: string
+          student_registry_id?: string | null
           submitted_at?: string | null
           total_marks?: number | null
         }
@@ -119,6 +95,13 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_sessions_student_registry_id_fkey"
+            columns: ["student_registry_id"]
+            isOneToOne: false
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]
@@ -307,6 +290,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      students: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string | null
+          full_name: string
+          grade: string | null
+          id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name: string
+          grade?: string | null
+          id?: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          full_name?: string
+          grade?: string | null
+          id?: string
+          student_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
