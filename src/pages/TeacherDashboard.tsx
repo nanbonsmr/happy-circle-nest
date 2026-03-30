@@ -383,7 +383,7 @@ const TeacherDashboard = () => {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1">
                               {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>}
-                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit exam"><Pencil className="h-3.5 w-3.5" /></button>
                               <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
                                 {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                               </button>
@@ -434,7 +434,7 @@ const TeacherDashboard = () => {
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1">
                             {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>}
-                            <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit exam"><Pencil className="h-3.5 w-3.5" /></button>
                             <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link"><Eye className="h-3.5 w-3.5" /></button>
                             <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
                               {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
@@ -697,23 +697,6 @@ const TeacherDashboard = () => {
           </div>
         </div>
       )}
-
-      <Dialog open={!!editingExam} onOpenChange={(open) => !open && setEditingExam(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Exam</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label>Title</Label><Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Subject</Label><Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Duration (minutes)</Label><Input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingExam(null)}>Cancel</Button>
-            <Button onClick={handleEditExam} disabled={editSaving} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
-              {editSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={!!deletingExamId} onOpenChange={(open) => !open && setDeletingExamId(null)}>
         <AlertDialogContent>

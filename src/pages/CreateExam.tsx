@@ -33,6 +33,7 @@ const CreateExam = () => {
   const [accessCode, setAccessCode] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
   const [securityLevel, setSecurityLevel] = useState<"low" | "high">("low");
   const [randomSeed, setRandomSeed] = useState("");
+  const [examStatus, setExamStatus] = useState<"draft" | "published" | "active" | "completed">("published");
 
   // Step 2 — block-based editor
   const [blocks, setBlocks] = useState<ExamBlock[]>([newBlock()]);
@@ -58,6 +59,7 @@ const CreateExam = () => {
         setMaxParticipants(exam.max_participants ? String(exam.max_participants) : "");
         setAccessCode(exam.access_code);
         setSecurityLevel(((exam as any).security_level as "low" | "high") || "low");
+        setExamStatus((exam.status as any) || "published");
 
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
@@ -146,7 +148,7 @@ const CreateExam = () => {
         subject: subject.trim(),
         duration_minutes: parseInt(duration) || 30,
         access_code: code,
-        status: "published",
+        status: isEditing ? examStatus : "published",
         max_participants: maxParticipants ? parseInt(maxParticipants) : null,
         security_level: securityLevel,
       };
