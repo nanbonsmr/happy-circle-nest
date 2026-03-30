@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { User, Mail, KeyRound, AlertCircle, BookOpen } from "lucide-react";
+import { KeyRound, AlertCircle, BookOpen, BadgeCheck, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,9 @@ const StudentAccess = () => {
   const { accessCode } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [studentIdInput, setStudentIdInput] = useState("");
+  const [verifiedStudent, setVerifiedStudent] = useState<{ id: string; full_name: string; email: string; student_id: string } | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [examTitle, setExamTitle] = useState("");
   const [examNotFound, setExamNotFound] = useState(false);
@@ -58,14 +59,31 @@ const StudentAccess = () => {
     }
   };
 
+  const handleVerifyStudentId = async () => {
+    const sid = studentIdInput.trim().toUpperCase();
+    if (!sid) return;
+    setVerifying(true);
+    setVerifiedStudent(null);
+    const { data, error } = await supabase
+      .from("students" as any)
+      .select("id, student_id, full_name, email")
+      .ilike("student_id", sid)
+      .maybeSingle();
+    if (error || !data) {
+      toast({ title: "Student ID not found", description: "Please check your ID and try again.", variant: "destructive" });
+    } else {
+      setVerifiedStudent(data as any);
+    }
+    setVerifying(false);
+  };
+
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim()) {
-      toast({ title: "Missing fields", description: "Please fill in all fields.", variant: "destructive" });
+    if (!verifiedStudent) {
+      toast({ title: "Please verify your Student ID first.", variant: "destructive" });
       return;
     }
     setLoading(true);
-
     try {
       const { data: exam, error: examError } = await supabase
         .from("exams")
@@ -90,11 +108,10 @@ const StudentAccess = () => {
         .from("exam_sessions")
         .select("id")
         .eq("exam_id", exam.id)
-        .eq("student_email", email.trim())
+        .eq("student_email", verifiedStudent.email || verifiedStudent.student_id)
         .maybeSingle();
 
       let sessionId: string;
-
       if (existing) {
         sessionId = existing.id;
       } else {
@@ -102,20 +119,20 @@ const StudentAccess = () => {
           .from("exam_sessions")
           .insert({
             exam_id: exam.id,
-            student_name: fullName.trim(),
-            student_email: email.trim(),
+            student_name: verifiedStudent.full_name,
+            student_email: verifiedStudent.email || verifiedStudent.student_id,
             status: "waiting",
-          })
+            student_registry_id: verifiedStudent.id,
+          } as any)
           .select("id")
           .single();
-
         if (sessionError) throw sessionError;
         sessionId = session.id;
       }
 
       sessionStorage.setItem("session_id", sessionId);
-      sessionStorage.setItem("student_name", fullName.trim());
-      sessionStorage.setItem("student_email", email.trim());
+      sessionStorage.setItem("student_name", verifiedStudent.full_name);
+      sessionStorage.setItem("student_email", verifiedStudent.email || verifiedStudent.student_id);
       sessionStorage.setItem("access_code", accessCode || "");
 
       navigate(`/exam/${accessCode}/ready`);
@@ -192,35 +209,49 @@ const StudentAccess = () => {
 
         <Card className="border-border/50 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-lg">Student Information</CardTitle>
+            <CardTitle className="text-lg">Student Verification</CardTitle>
             <CardDescription>
               Access Code: <span className="font-mono font-semibold text-primary">{accessCode}</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleStart} className="space-y-4">
+              {/* Student ID lookup */}
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="name" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-10" required />
+                <Label htmlFor="student-id">Student ID</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="student-id"
+                      placeholder="e.g. STU-0001"
+                      value={studentIdInput}
+                      onChange={(e) => { setStudentIdInput(e.target.value); setVerifiedStudent(null); }}
+                      className="pl-10 font-mono uppercase"
+                      required
+                    />
+                  </div>
+                  <Button type="button" onClick={handleVerifyStudentId} disabled={verifying || !studentIdInput.trim()}
+                    className="bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-0">
+                    {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-email">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="student-email" type="email" placeholder="your@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" required />
+
+              {/* Verified student info */}
+              {verifiedStudent && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+                  <BadgeCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-green-800">{verifiedStudent.full_name}</p>
+                    <p className="text-xs text-green-600">{verifiedStudent.email || verifiedStudent.student_id}</p>
+                    <p className="text-xs text-green-500 mt-0.5">Identity verified ✓</p>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Access Code</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input value={accessCode} disabled className="pl-10 bg-muted" />
-                </div>
-              </div>
-              <Button type="submit" disabled={loading} className="w-full gradient-primary border-0 text-primary-foreground hover:opacity-90 h-12 text-base font-semibold">
+              )}
+
+              <Button type="submit" disabled={loading || !verifiedStudent}
+                className="w-full gradient-primary border-0 text-primary-foreground hover:opacity-90 h-12 text-base font-semibold">
                 {loading ? "Joining..." : "Start Exam"}
               </Button>
             </form>

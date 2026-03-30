@@ -46,6 +46,36 @@ export type Database = {
           },
         ]
       }
+      students: {
+        Row: {
+          id: string
+          student_id: string
+          full_name: string
+          email: string
+          grade: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          full_name: string
+          email?: string
+          grade?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          full_name?: string
+          email?: string
+          grade?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       exam_sessions: {
         Row: {
           created_at: string

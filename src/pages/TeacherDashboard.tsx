@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, BarChart3, Settings,
   Users, Activity, Loader2,
   Play, Pencil, Trash2, Mail, LogOut, Plus, Eye,
-  Search, Download, ChevronUp, ChevronDown,
+  Search, Download, ChevronUp, ChevronDown, Copy, Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Exam = Tables<"exams">;
-type ActiveTab = "dashboard" | "exams" | "reports" | "settings";
+type ActiveTab = "dashboard" | "exams" | "reports" | "settings" | "monitor";
 interface SessionCounts { total: number; waiting: number; in_progress: number; submitted: number; }
 interface StudentReport {
   sessionId: string; studentName: string; studentEmail: string;
@@ -61,6 +61,9 @@ const TeacherDashboard = () => {
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [cloningId, setCloningId] = useState<string | null>(null);
+  const [monitorExamId, setMonitorExamId] = useState<string>("");
+  const [monitorSessions, setMonitorSessions] = useState<any[]>([]);
 
   const loadCounts = useCallback(async (list: Exam[]) => {
     if (!list.length) return;
@@ -121,6 +124,23 @@ const TeacherDashboard = () => {
   useExamAutoStatus(exams, (examId, newStatus) => {
     setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
   });
+
+  // Real-time live monitor
+  useEffect(() => {
+    if (activeTab !== "monitor" || !monitorExamId) return;
+    const loadSessions = async () => {
+      const { data } = await supabase.from("exam_sessions")
+        .select("id, student_name, student_email, status, submitted_at, score, total_marks")
+        .eq("exam_id", monitorExamId).order("created_at");
+      setMonitorSessions(data || []);
+    };
+    loadSessions();
+    const ch = supabase.channel("monitor-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions", filter: `exam_id=eq.${monitorExamId}` },
+        () => loadSessions())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [activeTab, monitorExamId]);
 
   useEffect(() => {
     if (activeTab === "reports" && exams.length > 0 && reports.length === 0) loadReports();
@@ -226,6 +246,37 @@ const TeacherDashboard = () => {
     setSendingId(null);
   };
 
+  const handleCloneExam = async (exam: Exam) => {
+    setCloningId(exam.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const { data: newExam, error: examErr } = await supabase.from("exams").insert({
+        teacher_id: user.id,
+        title: `${exam.title} (Copy)`,
+        subject: exam.subject,
+        duration_minutes: exam.duration_minutes,
+        access_code: newCode,
+        status: "published",
+        max_participants: exam.max_participants,
+        security_level: (exam as any).security_level || "low",
+      } as any).select().single();
+      if (examErr) throw examErr;
+      const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", exam.id).order("question_order");
+      if (qs?.length) {
+        const cloned = qs.map((q: any) => ({ ...q, id: undefined, exam_id: newExam.id, created_at: undefined }));
+        await supabase.from("questions").insert(cloned);
+      }
+      const { data: fresh } = await supabase.from("exams").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+      setExams(fresh || []);
+      toast({ title: "Exam cloned!", description: `"${exam.title} (Copy)" is ready to edit.` });
+    } catch (err: any) {
+      toast({ title: "Clone failed", description: err.message, variant: "destructive" });
+    }
+    setCloningId(null);
+  };
+
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     const { error } = await supabase.from("profiles").update({ full_name: profileName }).eq("id", userId);
@@ -250,6 +301,7 @@ const TeacherDashboard = () => {
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", tab: "dashboard" },
     { icon: FileText, label: "My Exams", tab: "exams" },
+    { icon: Radio, label: "Live Monitor", tab: "monitor" },
     { icon: BarChart3, label: "Reports", tab: "reports" },
     { icon: Settings, label: "Settings", tab: "settings" },
   ];
@@ -269,7 +321,7 @@ const TeacherDashboard = () => {
       userName={userName}
       userEmail={profileEmail}
       role="teacher"
-      headerTitle={activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "reports" ? "Reports" : "Settings"}
+      headerTitle={activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "monitor" ? "Live Monitor" : activeTab === "reports" ? "Reports" : "Settings"}
       liveCount={liveStudents}
       headerAction={
         (activeTab === "dashboard" || activeTab === "exams") ? (
@@ -382,6 +434,9 @@ const TeacherDashboard = () => {
                             {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>}
                             <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
                             <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link"><Eye className="h-3.5 w-3.5" /></button>
+                            <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
+                              {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                            </button>
                             <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
                               {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                             </button>
@@ -393,6 +448,86 @@ const TeacherDashboard = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "monitor" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="flex items-center gap-3">
+              <select value={monitorExamId} onChange={(e) => setMonitorExamId(e.target.value)}
+                title="Select exam to monitor" aria-label="Select exam to monitor"
+                className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]">
+                <option value="">Select an exam to monitor…</option>
+                {exams.filter((e) => e.status === "active" || e.status === "published").map((e) => (
+                  <option key={e.id} value={e.id}>{e.title} — {e.status}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1.5 text-xs text-green-600 font-semibold">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                Live
+              </div>
+            </div>
+          </div>
+
+          {!monitorExamId ? (
+            <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
+              Select an active exam above to start monitoring.
+            </div>
+          ) : monitorSessions.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
+              No students have joined yet.
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="font-bold text-[#1e3a5f]">Students ({monitorSessions.length})</h2>
+                <div className="flex items-center gap-4 text-xs text-slate-500">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Waiting: {monitorSessions.filter((s) => s.status === "waiting").length}</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Active: {monitorSessions.filter((s) => s.status === "in_progress").length}</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> Submitted: {monitorSessions.filter((s) => s.status === "submitted").length}</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                      <th className="text-left px-5 py-3 font-semibold">Student</th>
+                      <th className="text-left px-4 py-3 font-semibold">Status</th>
+                      <th className="text-left px-4 py-3 font-semibold">Score</th>
+                      <th className="text-left px-4 py-3 font-semibold">Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monitorSessions.map((s) => {
+                      const pct = s.total_marks > 0 ? Math.round((s.score / s.total_marks) * 100) : null;
+                      return (
+                        <tr key={s.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                          <td className="px-5 py-3">
+                            <p className="font-semibold text-[#1e3a5f]">{s.student_name}</p>
+                            <p className="text-xs text-slate-400">{s.student_email}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
+                              s.status === "submitted" ? "bg-blue-100 text-blue-600"
+                              : s.status === "in_progress" ? "bg-green-100 text-green-600"
+                              : "bg-amber-100 text-amber-600"
+                            }`}>{s.status === "in_progress" ? "Active" : s.status}</span>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-[#1e3a5f]">
+                            {s.status === "submitted" && pct !== null ? `${pct}%` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500">
+                            {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString() : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

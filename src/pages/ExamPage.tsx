@@ -184,7 +184,12 @@ const ExamPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState(() => {
+    // Restore last question position on reconnect
+    const sid = sessionStorage.getItem("session_id");
+    const saved = sid ? parseInt(sessionStorage.getItem(`q_pos_${sid}`) || "0", 10) : 0;
+    return isNaN(saved) ? 0 : saved;
+  });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -246,7 +251,10 @@ const ExamPage = () => {
       else {
         // Clean up violation counter on successful submit
         const sid2 = sessionStorage.getItem("session_id") || sessionId;
-        if (sid2) localStorage.removeItem(`violations_${sid2}`);
+        if (sid2) {
+          localStorage.removeItem(`violations_${sid2}`);
+          sessionStorage.removeItem(`q_pos_${sid2}`);
+        }
         navigate(`/exam/${accessCode}/complete`);
       }
     } catch (error: any) {
@@ -350,6 +358,9 @@ const ExamPage = () => {
         const ansMap: Record<string, string> = {};
         existingAnswers.forEach((a: any) => { if (a.selected_answer) ansMap[a.question_id] = a.selected_answer; });
         setAnswers(ansMap);
+        if (Object.keys(ansMap).length > 0) {
+          toast({ title: "Welcome back!", description: "Your previous answers have been restored." });
+        }
       }
       setLoading(false);
     };
@@ -370,6 +381,12 @@ const ExamPage = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [loading, handleSubmit, timeLeft, examEnded, ejected]);
+
+  // Persist current question position so it survives reconnect
+  useEffect(() => {
+    const sid = sessionStorage.getItem("session_id");
+    if (sid) sessionStorage.setItem(`q_pos_${sid}`, String(currentQuestion));
+  }, [currentQuestion]);
 
   const saveAnswer = useCallback(async (questionId: string, selectedAnswer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
