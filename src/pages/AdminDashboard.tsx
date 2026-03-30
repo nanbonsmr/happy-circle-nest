@@ -123,6 +123,19 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
+  const handleExamStatusChange = async (examId: string, newStatus: string) => {
+    try {
+      const updateData: any = { status: newStatus };
+      if (newStatus === "active") updateData.started_at = new Date().toISOString();
+      const { error } = await supabase.from("exams").update(updateData).eq("id", examId);
+      if (error) throw error;
+      toast({ title: "Status updated", description: `Exam status changed to ${newStatus}` });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const openAddTeacher = () => { setEditingTeacher(null); setTeacherName(""); setTeacherEmail(""); setTeacherPassword(Math.random().toString(36).slice(2, 10)); setShowTeacherDialog(true); };
   const openEditTeacher = (t: TeacherRow) => { setEditingTeacher(t); setTeacherName(t.full_name === "—" ? "" : t.full_name); setTeacherEmail(t.email); setTeacherPassword(""); setShowTeacherDialog(true); };
 
