@@ -31,6 +31,7 @@ interface StudentReport {
   correct: number; incorrect: number; totalQuestions: number; unanswered: number;
   percentage: number | null; tabSwitches: number; fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High";
+  ejectedByViolation: boolean;
 }
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-500",
@@ -150,7 +151,7 @@ const TeacherDashboard = () => {
     setReportsLoading(true);
     try {
       const examIds = exams.map((e) => e.id);
-      const { data: sessions } = await supabase.from("exam_sessions").select("*").in("exam_id", examIds);
+      const { data: sessions } = await supabase.from("exam_sessions").select("*, ejected_by_violation").in("exam_id", examIds);
       if (!sessions?.length) { setReports([]); setReportsLoading(false); return; }
       const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);
@@ -178,6 +179,7 @@ const TeacherDashboard = () => {
           submittedAt: s.submitted_at, correct, incorrect,
           unanswered: totalQ - answered, totalQuestions: totalQ,
           percentage: pct, tabSwitches, fullscreenExits, suspiciousScore,
+          ejectedByViolation: (s as any).ejected_by_violation === true,
         };
       });
       setReports(reps);
@@ -647,6 +649,11 @@ const TeacherDashboard = () => {
                         </td>
                         <td className="px-4 py-3.5">
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{r.status === "in_progress" ? "Active" : r.status}</span>
+                          {r.ejectedByViolation && (
+                            <span className="ml-1.5 text-xs font-bold px-2 py-0.5 rounded-full bg-red-600 text-white">
+                              ⚠ Cheater
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );

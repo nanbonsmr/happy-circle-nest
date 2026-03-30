@@ -20,6 +20,7 @@ export interface ReportRow {
   tabSwitches: number;
   fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High";
+  ejectedByViolation: boolean;
 }
 
 export function useReportFilters(reports: ReportRow[]) {
@@ -82,6 +83,7 @@ export function useReportFilters(reports: ReportRow[]) {
       Exam: r.examTitle,
       Subject: r.examSubject,
       Status: r.status,
+      "Ejected (Cheating)": r.ejectedByViolation ? "YES" : "No",
       Score: r.score ?? 0,
       "Total Marks": r.totalMarks ?? 0,
       "%": r.percentage ?? "—",
