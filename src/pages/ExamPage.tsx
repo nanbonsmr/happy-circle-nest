@@ -267,16 +267,17 @@ const ExamPage = () => {
     warningOpenRef.current = false;
     const sid = sessionStorage.getItem("session_id") || sessionId;
 
-    // Zero out the score — violations result in score removal
+    // Zero out the score and mark as ejected by violation
     if (sid) {
       await supabase.from("exam_sessions").update({
         status: "submitted",
         submitted_at: new Date().toISOString(),
         score: 0,
         total_marks: 0,
-      }).eq("id", sid);
-      // Clean up violation counter
+        ejected_by_violation: true,
+      } as any).eq("id", sid);
       localStorage.removeItem(`violations_${sid}`);
+      sessionStorage.removeItem(`q_pos_${sid}`);
     }
 
     setEjectedByViolation(true);
