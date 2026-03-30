@@ -24,6 +24,7 @@ export interface ReportRow {
 
 export function useReportFilters(reports: ReportRow[]) {
   const [examFilter, setExamFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<"percentage" | "studentName">("percentage");
   const [sortAsc, setSortAsc] = useState(false);
@@ -34,8 +35,17 @@ export function useReportFilters(reports: ReportRow[]) {
   };
 
   const filtered = useMemo(() => {
-    let rows = reports.filter((r) => r.status === "submitted");
-    if (examFilter !== "all") rows = rows.filter((r) => r.examId === examFilter);
+    let rows = [...reports];
+
+    // Status filter — default shows all, can filter to submitted only
+    if (statusFilter !== "all") {
+      rows = rows.filter((r) => r.status === statusFilter);
+    }
+
+    if (examFilter !== "all") {
+      rows = rows.filter((r) => r.examId === examFilter);
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(
@@ -44,30 +54,37 @@ export function useReportFilters(reports: ReportRow[]) {
           r.studentEmail.toLowerCase().includes(q)
       );
     }
+
     rows = [...rows].sort((a, b) => {
       if (sortField === "percentage") {
+        // Put null percentages (not submitted) at the bottom
+        if (a.percentage === null && b.percentage === null) return 0;
+        if (a.percentage === null) return 1;
+        if (b.percentage === null) return -1;
         return sortAsc
-          ? (a.percentage ?? -1) - (b.percentage ?? -1)
-          : (b.percentage ?? -1) - (a.percentage ?? -1);
+          ? a.percentage - b.percentage
+          : b.percentage - a.percentage;
       }
       return sortAsc
         ? a.studentName.localeCompare(b.studentName)
         : b.studentName.localeCompare(a.studentName);
     });
+
     return rows;
-  }, [reports, examFilter, search, sortField, sortAsc]);
+  }, [reports, examFilter, statusFilter, search, sortField, sortAsc]);
 
   const exportXLSX = (filename = "results.xlsx") => {
     if (!filtered.length) return;
     const data = filtered.map((r, i) => ({
-      Rank: i + 1,
+      Rank: r.status === "submitted" ? i + 1 : "—",
       "Student Name": r.studentName,
       Email: r.studentEmail,
       Exam: r.examTitle,
       Subject: r.examSubject,
+      Status: r.status,
       Score: r.score ?? 0,
       "Total Marks": r.totalMarks ?? 0,
-      "%": r.percentage ?? 0,
+      "%": r.percentage ?? "—",
       Correct: r.correct,
       Incorrect: r.incorrect,
       Unanswered: r.unanswered,
@@ -84,6 +101,7 @@ export function useReportFilters(reports: ReportRow[]) {
 
   return {
     examFilter, setExamFilter,
+    statusFilter, setStatusFilter,
     search, setSearch,
     sortField, sortAsc, toggleSort,
     filtered,
