@@ -497,7 +497,16 @@ const AdminDashboard = () => {
                       <td className="px-4 py-3.5 text-slate-500">{e.duration_minutes} min</td>
                       <td className="px-4 py-3.5 font-mono text-xs text-slate-500">{e.access_code}</td>
                       <td className="px-4 py-3.5">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColors[e.status] || statusColors.draft}`}>{e.status}</span>
+                        <select
+                          value={e.status}
+                          onChange={(ev) => handleExamStatusChange(e.id, ev.target.value)}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize border-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 ${statusColors[e.status] || statusColors.draft}`}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                        </select>
                       </td>
                     </tr>
                   ))}
