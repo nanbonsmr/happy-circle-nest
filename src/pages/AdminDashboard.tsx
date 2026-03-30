@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -499,8 +500,7 @@ const AdminDashboard = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <select value={resultExamFilter} onChange={(e) => setResultExamFilter(e.target.value)}
-                title="Filter by exam"
-                aria-label="Filter by exam"
+                title="Filter by exam" aria-label="Filter by exam"
                 className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:border-[#1a8fe3]">
                 <option value="all">All Exams</option>
                 {exams.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}
@@ -530,6 +530,7 @@ const AdminDashboard = () => {
                     <th className="text-center px-4 py-3 font-semibold cursor-pointer select-none" onClick={() => toggleSort("score")}>
                       <span className="flex items-center gap-1 justify-center">Score <SortIcon field="score" /></span>
                     </th>
+                    <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-left px-4 py-3 font-semibold">Submitted</th>
                   </tr>
                 </thead>
@@ -550,10 +551,18 @@ const AdminDashboard = () => {
                           <p className="text-xs text-slate-400">{r.exam_subject}</p>
                         </td>
                         <td className="px-4 py-3.5 text-center">
-                          <span className={`text-base font-bold ${pct !== null && pct >= 70 ? "text-green-600" : pct !== null && pct >= 40 ? "text-amber-500" : "text-red-500"}`}>
-                            {pct !== null ? `${pct}%` : "—"}
-                          </span>
-                          <p className="text-xs text-slate-400">{r.score ?? 0}/{r.total_marks ?? 0}</p>
+                          {pct !== null ? (
+                            <>
+                              <span className={`text-base font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>{pct}%</span>
+                              <p className="text-xs text-slate-400">{r.score ?? 0}/{r.total_marks ?? 0}</p>
+                            </>
+                          ) : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="w-24 mx-auto">
+                            <Progress value={pct ?? 0} className="h-1.5" />
+                            <p className="text-xs text-slate-400 text-center mt-0.5">{pct ?? 0}%</p>
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 text-xs text-slate-500">
                           {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}

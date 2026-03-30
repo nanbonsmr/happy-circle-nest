@@ -94,6 +94,21 @@ const StudentAccess = () => {
 
       if (examError || !exam) throw new Error("Exam not found or not available. Please check your access code.");
 
+      // Block duplicate active sessions for the same student ID
+      const { data: activeSession } = await supabase
+        .from("exam_sessions")
+        .select("id, status")
+        .eq("exam_id", exam.id)
+        .eq("student_registry_id" as any, verifiedStudent.id)
+        .in("status", ["waiting", "in_progress"])
+        .maybeSingle();
+
+      if (activeSession) {
+        throw new Error(
+          "This Student ID is already being used in an active exam session. If this is you, please wait or contact your teacher."
+        );
+      }
+
       if (exam.max_participants) {
         const { count } = await supabase
           .from("exam_sessions")

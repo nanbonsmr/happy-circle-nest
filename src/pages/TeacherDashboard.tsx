@@ -294,7 +294,7 @@ const TeacherDashboard = () => {
 
   // Report filters
   const {
-    examFilter, setExamFilter, search, setSearch,
+    examFilter, setExamFilter, statusFilter, setStatusFilter, search, setSearch,
     sortField, sortAsc, toggleSort, filtered: filteredReports, exportXLSX,
   } = useReportFilters(reports);
 
@@ -535,10 +535,9 @@ const TeacherDashboard = () => {
 
       {activeTab === "reports" && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          {/* Toolbar */}
           <div className="px-5 py-4 border-b border-slate-100 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold text-[#1e3a5f]">Student Reports</h2>
+              <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={loadReports} disabled={reportsLoading} className="text-xs text-[#1a8fe3] hover:underline font-medium">{reportsLoading ? "Loading..." : "Refresh"}</button>
                 <button type="button" onClick={() => exportXLSX("reports.xlsx")} disabled={!filteredReports.length}
@@ -548,15 +547,20 @@ const TeacherDashboard = () => {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              {/* Exam filter */}
               <select value={examFilter} onChange={(e) => setExamFilter(e.target.value)}
-                title="Filter by exam"
-                aria-label="Filter by exam"
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:border-[#1a8fe3]">
+                title="Filter by exam" aria-label="Filter by exam"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:border-[#1a8fe3]">
                 <option value="all">All Exams</option>
                 {exams.map((ex) => <option key={ex.id} value={ex.id}>{ex.title}</option>)}
               </select>
-              {/* Search */}
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                title="Filter by status" aria-label="Filter by status"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:border-[#1a8fe3]">
+                <option value="all">All Statuses</option>
+                <option value="submitted">Submitted</option>
+                <option value="in_progress">In Progress</option>
+                <option value="waiting">Waiting</option>
+              </select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input type="text" placeholder="Search student name or email..." value={search}
@@ -570,14 +574,14 @@ const TeacherDashboard = () => {
             <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#1a8fe3]" /></div>
           ) : filteredReports.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm">
-              {reports.length === 0 ? "No submissions yet." : "No results match your filters."}
+              {reports.length === 0 ? "No student sessions yet." : "No results match your filters."}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-5 py-3 font-semibold">Rank</th>
+                    <th className="text-left px-5 py-3 font-semibold">#</th>
                     <th className="text-left px-4 py-3 font-semibold cursor-pointer select-none" onClick={() => toggleSort("studentName")}>
                       <span className="flex items-center gap-1">Student {sortField === "studentName" ? (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}</span>
                     </th>
@@ -585,28 +589,68 @@ const TeacherDashboard = () => {
                     <th className="text-center px-4 py-3 font-semibold cursor-pointer select-none" onClick={() => toggleSort("percentage")}>
                       <span className="flex items-center gap-1 justify-center">Score {sortField === "percentage" ? (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}</span>
                     </th>
+                    <th className="text-center px-4 py-3 font-semibold">Answers</th>
                     <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-center px-4 py-3 font-semibold">Risk</th>
+                    <th className="text-left px-4 py-3 font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredReports.map((r, i) => (
-                    <tr key={r.sessionId} className={`border-t border-slate-50 hover:bg-slate-50/70 transition-colors ${i === 0 ? "bg-amber-50/40" : i === 1 ? "bg-slate-50/60" : i === 2 ? "bg-orange-50/30" : ""}`}>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-200 text-amber-700" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-orange-200 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
-                      </td>
-                      <td className="px-4 py-3.5"><p className="font-semibold text-[#1e3a5f]">{r.studentName}</p><p className="text-xs text-slate-400">{r.studentEmail}</p></td>
-                      <td className="px-4 py-3.5"><p className="font-medium text-slate-700">{r.examTitle}</p><p className="text-xs text-slate-400">{r.examSubject}</p></td>
-                      <td className="px-4 py-3.5 text-center">
-                        <span className={`text-base font-bold ${r.percentage !== null && r.percentage >= 70 ? "text-green-600" : r.percentage !== null && r.percentage >= 40 ? "text-amber-500" : "text-red-500"}`}>{r.percentage !== null ? `${r.percentage}%` : "—"}</span>
-                        <p className="text-xs text-slate-400">{r.correct}/{r.totalQuestions}</p>
-                      </td>
-                      <td className="px-4 py-3.5"><div className="w-20 mx-auto"><Progress value={r.percentage ?? 0} className="h-1.5" /></div></td>
-                      <td className="px-4 py-3.5 text-center">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>{r.suspiciousScore}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredReports.map((r, i) => {
+                    const isSubmitted = r.status === "submitted";
+                    const pct = r.percentage;
+                    const progressVal = pct !== null ? pct : 0;
+                    return (
+                      <tr key={r.sessionId} className={`border-t border-slate-50 hover:bg-slate-50/70 transition-colors ${i === 0 && isSubmitted ? "bg-amber-50/40" : i === 1 && isSubmitted ? "bg-slate-50/60" : i === 2 && isSubmitted ? "bg-orange-50/30" : ""}`}>
+                        <td className="px-5 py-3.5">
+                          {isSubmitted ? (
+                            <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-200 text-amber-700" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-orange-200 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-[#1e3a5f]">{r.studentName}</p>
+                          <p className="text-xs text-slate-400">{r.studentEmail}</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-medium text-slate-700">{r.examTitle}</p>
+                          <p className="text-xs text-slate-400">{r.examSubject}</p>
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          {isSubmitted && pct !== null ? (
+                            <>
+                              <span className={`text-base font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>{pct}%</span>
+                              <p className="text-xs text-slate-400">{r.score ?? 0}/{r.totalMarks ?? 0} marks</p>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 text-sm">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <div className="flex items-center justify-center gap-2 text-xs">
+                            <span className="text-green-600 font-semibold">✓{r.correct}</span>
+                            <span className="text-red-500 font-semibold">✗{r.incorrect}</span>
+                            <span className="text-slate-400">?{r.unanswered}</span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">{r.correct + r.incorrect}/{r.totalQuestions} answered</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="w-20 mx-auto">
+                            <Progress value={progressVal} className="h-1.5" />
+                            <p className="text-xs text-slate-400 text-center mt-0.5">{progressVal}%</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>{r.suspiciousScore}</span>
+                          <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t · {r.fullscreenExits}fs</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{r.status === "in_progress" ? "Active" : r.status}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
