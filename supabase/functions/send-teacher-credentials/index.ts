@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 </html>`;
 
     const emailPayload = {
-      sender: { name: "Nejo Exam Prep", email: "nanbonai5@gmail.com" },
+      sender: { name: "Nejo Exam Prep", email: "nanbonpro@gmail.com" },
       to: [{ email: teacherEmail, name: teacherName || "Teacher" }],
       subject: "Your Teacher Account Credentials — Nejo Exam Prep",
       htmlContent,
