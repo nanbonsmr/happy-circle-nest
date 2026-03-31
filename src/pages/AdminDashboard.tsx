@@ -455,6 +455,9 @@ const AdminDashboard = () => {
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-[#1e3a5f]">{s.full_name}</td>
                       <td className="px-4 py-3.5 text-slate-500">{s.email || "—"}</td>
+                      <td className="px-4 py-3.5">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.gender === "Male" ? "bg-blue-50 text-blue-600" : s.gender === "Female" ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-500"}`}>{s.gender || "—"}</span>
+                      </td>
                       <td className="px-4 py-3.5 text-slate-500">{s.grade || "—"}</td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1">
