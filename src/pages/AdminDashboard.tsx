@@ -59,6 +59,7 @@ const AdminDashboard = () => {
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentGrade, setStudentGrade] = useState("");
+  const [studentGender, setStudentGender] = useState("");
   const [savingStudent, setSavingStudent] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
 
@@ -177,8 +178,8 @@ const AdminDashboard = () => {
 
   const generateStudentId = (count: number) => `STU-${String(count + 1).padStart(4, "0")}`;
 
-  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
-  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email); setStudentGrade(s.grade); setShowStudentDialog(true); };
+  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setStudentGender(""); setShowStudentDialog(true); };
+  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email); setStudentGrade(s.grade); setStudentGender(s.gender || ""); setShowStudentDialog(true); };
 
   const handleSaveStudent = async () => {
     if (!studentName.trim()) return;
@@ -186,12 +187,12 @@ const AdminDashboard = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingStudent) {
-        const { error } = await supabase.from("students" as any).update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }).eq("id", editingStudent.id);
+        const { error } = await supabase.from("students" as any).update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender }).eq("id", editingStudent.id);
         if (error) throw error;
         toast({ title: "Student updated!" });
       } else {
         const newId = generateStudentId(students.length);
-        const { error } = await supabase.from("students" as any).insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id });
+        const { error } = await supabase.from("students" as any).insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender, created_by: user?.id });
         if (error) throw error;
         toast({ title: "Student added!", description: `Student ID: ${newId}` });
       }
@@ -211,7 +212,7 @@ const AdminDashboard = () => {
   };
 
   const handleExportStudents = (format: "csv" | "xlsx") => {
-    const data = filteredStudents.map((s) => ({ "Student ID": s.student_id, "Full Name": s.full_name, Email: s.email, Grade: s.grade }));
+    const data = filteredStudents.map((s) => ({ "Student ID": s.student_id, "Full Name": s.full_name, Email: s.email, Grade: s.grade, Gender: s.gender || "" }));
     if (format === "xlsx") {
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -324,6 +325,12 @@ const AdminDashboard = () => {
             <StatCard label="Total Exams" value={String(exams.length)} icon={FileText} accent="border-l-green-400" iconBg="bg-green-50" iconColor="text-green-500" index={1} />
             <StatCard label="Total Students" value={String(totalStudents)} icon={Activity} accent="border-l-purple-400" iconBg="bg-purple-50" iconColor="text-purple-500" index={2} />
             <StatCard label="Active Exams" value={String(activeExams)} icon={TrendingUp} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
+          </div>
+          <div className="flex justify-end">
+            <button type="button" onClick={() => navigate("/admin/analytics")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
+              <BarChart3 className="h-4 w-4" /> Analytics Dashboard
+            </button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -441,6 +448,7 @@ const AdminDashboard = () => {
                     <th className="text-left px-5 py-3 font-semibold">Student ID</th>
                     <th className="text-left px-4 py-3 font-semibold">Full Name</th>
                     <th className="text-left px-4 py-3 font-semibold">Email</th>
+                     <th className="text-left px-4 py-3 font-semibold">Gender</th>
                     <th className="text-left px-4 py-3 font-semibold">Grade</th>
                     <th className="text-left px-4 py-3 font-semibold">Actions</th>
                   </tr>
@@ -453,6 +461,9 @@ const AdminDashboard = () => {
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-[#1e3a5f]">{s.full_name}</td>
                       <td className="px-4 py-3.5 text-slate-500">{s.email || "—"}</td>
+                      <td className="px-4 py-3.5">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.gender === "Male" ? "bg-blue-50 text-blue-600" : s.gender === "Female" ? "bg-pink-50 text-pink-600" : "bg-slate-50 text-slate-500"}`}>{s.gender || "—"}</span>
+                      </td>
                       <td className="px-4 py-3.5 text-slate-500">{s.grade || "—"}</td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1">
@@ -636,11 +647,24 @@ const AdminDashboard = () => {
           <div className="space-y-4 py-2">
             <div className="space-y-2"><Label>Full Name *</Label><Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student full name" /></div>
             <div className="space-y-2"><Label>Email (optional)</Label><Input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="student@school.edu" /></div>
+            <div className="space-y-2">
+              <Label>Gender *</Label>
+              <select
+                value={studentGender}
+                onChange={(e) => setStudentGender(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:border-[#1a8fe3] focus:ring-2 focus:ring-blue-100 transition-all"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
             <div className="space-y-2"><Label>Grade / Class (optional)</Label><Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStudentDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveStudent} disabled={savingStudent || !studentName.trim()} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+            <Button onClick={handleSaveStudent} disabled={savingStudent || !studentName.trim() || !studentGender} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
               {savingStudent ? "Saving..." : editingStudent ? "Update" : "Add Student"}
             </Button>
           </DialogFooter>
