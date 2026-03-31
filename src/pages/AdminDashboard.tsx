@@ -658,7 +658,7 @@ const AdminDashboard = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStudentDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveStudent} disabled={savingStudent || !studentName.trim()} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+            <Button onClick={handleSaveStudent} disabled={savingStudent || !studentName.trim() || !studentGender} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
               {savingStudent ? "Saving..." : editingStudent ? "Update" : "Add Student"}
             </Button>
           </DialogFooter>
