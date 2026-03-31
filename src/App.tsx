@@ -12,6 +12,7 @@ import ExamComplete from "./pages/ExamComplete";
 import AdminLogin from "./pages/AdminLogin";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import CreateExam from "./pages/CreateExam";
 import StudentEntry from "./pages/StudentEntry";
 
