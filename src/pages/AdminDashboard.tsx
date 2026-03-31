@@ -212,7 +212,7 @@ const AdminDashboard = () => {
   };
 
   const handleExportStudents = (format: "csv" | "xlsx") => {
-    const data = filteredStudents.map((s) => ({ "Student ID": s.student_id, "Full Name": s.full_name, Email: s.email, Grade: s.grade }));
+    const data = filteredStudents.map((s) => ({ "Student ID": s.student_id, "Full Name": s.full_name, Email: s.email, Grade: s.grade, Gender: s.gender || "" }));
     if (format === "xlsx") {
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
