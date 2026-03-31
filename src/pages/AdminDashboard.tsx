@@ -641,6 +641,19 @@ const AdminDashboard = () => {
           <div className="space-y-4 py-2">
             <div className="space-y-2"><Label>Full Name *</Label><Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student full name" /></div>
             <div className="space-y-2"><Label>Email (optional)</Label><Input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="student@school.edu" /></div>
+            <div className="space-y-2">
+              <Label>Gender *</Label>
+              <select
+                value={studentGender}
+                onChange={(e) => setStudentGender(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:border-[#1a8fe3] focus:ring-2 focus:ring-blue-100 transition-all"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
             <div className="space-y-2"><Label>Grade / Class (optional)</Label><Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" /></div>
           </div>
           <DialogFooter>
