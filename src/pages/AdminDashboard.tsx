@@ -326,6 +326,12 @@ const AdminDashboard = () => {
             <StatCard label="Total Students" value={String(totalStudents)} icon={Activity} accent="border-l-purple-400" iconBg="bg-purple-50" iconColor="text-purple-500" index={2} />
             <StatCard label="Active Exams" value={String(activeExams)} icon={TrendingUp} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
           </div>
+          <div className="flex justify-end">
+            <button type="button" onClick={() => navigate("/admin/analytics")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
+              <BarChart3 className="h-4 w-4" /> Analytics Dashboard
+            </button>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
