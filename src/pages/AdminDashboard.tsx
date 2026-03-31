@@ -187,12 +187,12 @@ const AdminDashboard = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingStudent) {
-        const { error } = await supabase.from("students" as any).update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }).eq("id", editingStudent.id);
+        const { error } = await supabase.from("students" as any).update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender }).eq("id", editingStudent.id);
         if (error) throw error;
         toast({ title: "Student updated!" });
       } else {
         const newId = generateStudentId(students.length);
-        const { error } = await supabase.from("students" as any).insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id });
+        const { error } = await supabase.from("students" as any).insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender, created_by: user?.id });
         if (error) throw error;
         toast({ title: "Student added!", description: `Student ID: ${newId}` });
       }
