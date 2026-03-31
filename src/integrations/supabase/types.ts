@@ -297,6 +297,7 @@ export type Database = {
           created_by: string | null
           email: string | null
           full_name: string
+          gender: string
           grade: string | null
           id: string
           student_id: string
@@ -306,6 +307,7 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           full_name: string
+          gender?: string
           grade?: string | null
           id?: string
           student_id: string
@@ -315,6 +317,7 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           full_name?: string
+          gender?: string
           grade?: string | null
           id?: string
           student_id?: string
