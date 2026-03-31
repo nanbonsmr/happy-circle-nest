@@ -59,6 +59,7 @@ const AdminDashboard = () => {
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentGrade, setStudentGrade] = useState("");
+  const [studentGender, setStudentGender] = useState("");
   const [savingStudent, setSavingStudent] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
 
