@@ -178,8 +178,8 @@ const AdminDashboard = () => {
 
   const generateStudentId = (count: number) => `STU-${String(count + 1).padStart(4, "0")}`;
 
-  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
-  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email); setStudentGrade(s.grade); setShowStudentDialog(true); };
+  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setStudentGender(""); setShowStudentDialog(true); };
+  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email); setStudentGrade(s.grade); setStudentGender(s.gender || ""); setShowStudentDialog(true); };
 
   const handleSaveStudent = async () => {
     if (!studentName.trim()) return;
