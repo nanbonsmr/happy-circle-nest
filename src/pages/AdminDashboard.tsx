@@ -442,6 +442,7 @@ const AdminDashboard = () => {
                     <th className="text-left px-5 py-3 font-semibold">Student ID</th>
                     <th className="text-left px-4 py-3 font-semibold">Full Name</th>
                     <th className="text-left px-4 py-3 font-semibold">Email</th>
+                     <th className="text-left px-4 py-3 font-semibold">Gender</th>
                     <th className="text-left px-4 py-3 font-semibold">Grade</th>
                     <th className="text-left px-4 py-3 font-semibold">Actions</th>
                   </tr>
