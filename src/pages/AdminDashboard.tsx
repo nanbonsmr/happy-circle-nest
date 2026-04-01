@@ -260,8 +260,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
-  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email || ""); setStudentGrade(s.grade || ""); setShowStudentDialog(true); };
+  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setStudentGender("Male"); setStudentPassword("pass1234"); setShowStudentPw(false); setShowStudentDialog(true); };
+  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email || ""); setStudentGrade(s.grade || ""); setStudentGender(s.gender || ""); setStudentPassword(""); setShowStudentPw(false); setShowStudentDialog(true); };
 
   const handleSaveStudent = async () => {
     if (!studentName.trim()) return;
