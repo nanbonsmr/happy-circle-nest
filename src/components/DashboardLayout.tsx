@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
-import { motion } from "framer-motion";
-import { LogOut, Bell } from "lucide-react";
+import { ReactNode, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { LogOut, Bell, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 interface NavItem {
@@ -28,6 +28,7 @@ export const DashboardLayout = ({
   userName, userEmail, role, headerTitle, headerAction, liveCount, children,
 }: Props) => {
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a8fe3] via-[#1a7fd4] to-[#1565c0] p-3 sm:p-4 md:p-6">
@@ -82,7 +83,16 @@ export const DashboardLayout = ({
         <div className="flex-1 flex flex-col bg-[#f0f4f8] rounded-r-2xl overflow-hidden">
           {/* Top header */}
           <header className="bg-white px-5 py-3.5 flex items-center justify-between border-b border-slate-100 shrink-0">
-            <div>
+            <div className="flex items-center gap-3">
+              {/* Mobile menu button */}
+              <button
+                type="button"
+                className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open navigation"
+              >
+                <Menu className="h-5 w-5 text-slate-600" />
+              </button>
               <h1 className="text-lg font-bold text-[#1e3a5f]">{headerTitle}</h1>
             </div>
             <div className="flex items-center gap-3">
@@ -124,6 +134,68 @@ export const DashboardLayout = ({
           </div>
         </div>
       </div>
+
+      {/* Mobile nav drawer */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50 md:hidden"
+              onClick={() => setMobileNavOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "tween", duration: 0.25 }}
+              className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl flex flex-col md:hidden"
+            >
+              <div className="p-4 flex items-center justify-between border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <img src={logo} alt="NejoExamPrep" className="h-9 w-9 rounded-full object-cover" />
+                  <span className="font-bold text-[#1e3a5f] text-sm">NejoExamPrep</span>
+                </div>
+                <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">
+                  <X className="h-5 w-5 text-slate-500" />
+                </button>
+              </div>
+              <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                {navItems.map((item) => {
+                  const active = activeTab === item.tab;
+                  return (
+                    <button
+                      key={item.tab}
+                      type="button"
+                      onClick={() => { onTabChange(item.tab); setMobileNavOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        active
+                          ? "bg-[#1a8fe3] text-white shadow-md shadow-blue-200"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-[#1e3a5f]"
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+              <div className="p-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { examId, senderEmail, senderName } = await req.json();
+    const { examId, senderEmail: _senderEmail, senderName: _senderName } = await req.json();
     if (!examId) {
       return new Response(JSON.stringify({ error: "examId is required" }), {
         status: 400,

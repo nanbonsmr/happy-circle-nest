@@ -61,33 +61,38 @@ const ExamReady = () => {
           .update({ status: "in_progress", started_at: new Date().toISOString() })
           .eq("id", sessionId);
         navigate(`/exam/${accessCode}/take`);
+        return;
       }
-    };
-    loadExam();
 
-    const channel = supabase
-      .channel("exam-status")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "exams", filter: `access_code=eq.${accessCode}` },
-        async (payload) => {
-          const newStatus = payload.new.status;
-          setExamStatus(newStatus);
-          if (newStatus === "active") {
-            const sid = sessionStorage.getItem("session_id");
-            if (sid) {
-              await supabase
-                .from("exam_sessions")
-                .update({ status: "in_progress", started_at: new Date().toISOString() })
-                .eq("id", sid);
+      const channel = supabase
+        .channel(`exam-ready-${exam.id}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "exams", filter: `id=eq.${exam.id}` },
+          async (payload) => {
+            const newStatus = payload.new.status;
+            setExamStatus(newStatus);
+            if (newStatus === "active") {
+              const sid = sessionStorage.getItem("session_id");
+              if (sid) {
+                await supabase
+                  .from("exam_sessions")
+                  .update({ status: "in_progress", started_at: new Date().toISOString() })
+                  .eq("id", sid);
+              }
+              navigate(`/exam/${accessCode}/take`);
             }
-            navigate(`/exam/${accessCode}/take`);
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+      return () => { supabase.removeChannel(channel); };
+    };
+
+    let cleanupChannel: (() => void) | undefined;
+    loadExam().then((cleanup) => { cleanupChannel = cleanup; });
+
+    return () => { cleanupChannel?.(); };
   }, [accessCode, navigate]);
 
   const isWaiting = examStatus !== "active";
