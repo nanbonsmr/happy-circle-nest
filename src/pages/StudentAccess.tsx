@@ -65,14 +65,14 @@ const StudentAccess = () => {
     setVerifying(true);
     setVerifiedStudent(null);
     const { data, error } = await supabase
-      .from("students" as any)
+      .from("students")
       .select("id, student_id, full_name, email")
       .ilike("student_id", sid)
       .maybeSingle();
     if (error || !data) {
       toast({ title: "Student ID not found", description: "Please check your ID and try again.", variant: "destructive" });
     } else {
-      setVerifiedStudent(data as any);
+      setVerifiedStudent(data);
     }
     setVerifying(false);
   };
@@ -139,7 +139,7 @@ const StudentAccess = () => {
             student_email: verifiedStudent.email || verifiedStudent.student_id,
             status: "waiting",
             student_registry_id: verifiedStudent.id,
-          } as any)
+          })
           .select("id")
           .single();
         if (sessionError) throw sessionError;
