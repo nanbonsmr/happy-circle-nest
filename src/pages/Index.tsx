@@ -113,12 +113,11 @@ const Index = () => {
 
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-100 px-4 py-4 space-y-3">
-            <form onSubmit={handleExamKeySubmit} className="flex gap-2">
-              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)} className="flex-1 h-10" />
-              <Button type="submit" className="h-10 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">Go</Button>
-            </form>
+            <Button asChild className="w-full h-10 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">
+              <Link to="/student">Student Login</Link>
+            </Button>
             <Button asChild className="w-full h-10 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold">
-              <Link to="/login">Sign In</Link>
+              <Link to="/login">Teacher Sign In</Link>
             </Button>
           </div>
         )}
