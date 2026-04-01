@@ -14,7 +14,9 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import CreateExam from "./pages/CreateExam";
-import StudentEntry from "./pages/StudentEntry";
+import StudentLogin from "./pages/StudentLogin";
+import StudentDashboard from "./pages/StudentDashboard";
+import StudentResultDetail from "./pages/StudentResultDetail";
 
 const queryClient = new QueryClient();
 
@@ -26,7 +28,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/student" element={<StudentEntry />} />
+          <Route path="/student" element={<StudentLogin />} />
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/student/results/:sessionId" element={<StudentResultDetail />} />
           <Route path="/exam/:accessCode" element={<StudentAccess />} />
           <Route path="/exam/:accessCode/ready" element={<ExamReady />} />
           <Route path="/exam/:accessCode/take" element={<ExamPage />} />

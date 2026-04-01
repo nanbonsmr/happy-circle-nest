@@ -65,6 +65,8 @@ const AdminDashboard = () => {
   const [studentEmail, setStudentEmail] = useState("");
   const [studentGrade, setStudentGrade] = useState("");
   const [studentGender, setStudentGender] = useState("");
+  const [studentPassword, setStudentPassword] = useState("");
+  const [showStudentPw, setShowStudentPw] = useState(false);
   const [savingStudent, setSavingStudent] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null);
@@ -258,8 +260,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
-  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email || ""); setStudentGrade(s.grade || ""); setShowStudentDialog(true); };
+  const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setStudentGender("Male"); setStudentPassword("pass1234"); setShowStudentPw(false); setShowStudentDialog(true); };
+  const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email || ""); setStudentGrade(s.grade || ""); setStudentGender(s.gender || ""); setStudentPassword(""); setShowStudentPw(false); setShowStudentDialog(true); };
 
   const handleSaveStudent = async () => {
     if (!studentName.trim()) return;
@@ -268,14 +270,16 @@ const AdminDashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingStudent) {
         // UPDATE
-        const { error } = await supabase.from("students")
-          .update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() })
-          .eq("id", editingStudent.id);
+        const updateData: any = { full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender };
+        if (studentPassword.trim()) {
+          updateData.password = studentPassword.trim();
+          updateData.must_change_password = true;
+        }
+        const { error } = await supabase.from("students").update(updateData).eq("id", editingStudent.id);
         if (error) throw error;
-        // Optimistic UI update
         setStudents((prev) => prev.map((s) =>
           s.id === editingStudent.id
-            ? { ...s, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }
+            ? { ...s, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender }
             : s
         ));
         toast({ title: "Student updated successfully." });
@@ -293,7 +297,16 @@ const AdminDashboard = () => {
         const newId = `STU-${String(lastNum + 1).padStart(4, "0")}`;
 
         const { data: inserted, error } = await supabase.from("students")
-          .insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id })
+          .insert({
+            student_id: newId,
+            full_name: studentName.trim(),
+            email: studentEmail.trim(),
+            grade: studentGrade.trim(),
+            gender: studentGender,
+            password: studentPassword || "pass1234",
+            must_change_password: true,
+            created_by: user?.id,
+          })
           .select()
           .single();
         if (error) throw error;
@@ -800,10 +813,49 @@ const AdminDashboard = () => {
               <Label>Email (optional)</Label>
               <Input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="student@school.edu" />
             </div>
-            <div className="space-y-2">
-              <Label>Grade / Class (optional)</Label>
-              <Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Gender *</Label>
+                <select value={studentGender} onChange={(e) => setStudentGender(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Grade / Class</Label>
+                <Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" />
+              </div>
             </div>
+            {!editingStudent && (
+              <div className="space-y-2">
+                <Label>Default Password *</Label>
+                <div className="relative">
+                  <Input type={showStudentPw ? "text" : "password"} value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)} placeholder="Default login password" className="pr-10" />
+                  <button type="button" onClick={() => setShowStudentPw(!showStudentPw)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                    {showStudentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">Student will be required to change this on first login.</p>
+              </div>
+            )}
+            {editingStudent && (
+              <div className="space-y-2">
+                <Label>Reset Password</Label>
+                <div className="relative">
+                  <Input type={showStudentPw ? "text" : "password"} value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)} placeholder="Leave blank to keep current" className="pr-10" />
+                  <button type="button" onClick={() => setShowStudentPw(!showStudentPw)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                    {showStudentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStudentDialog(false)}>Cancel</Button>

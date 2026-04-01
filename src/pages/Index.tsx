@@ -98,15 +98,11 @@ const Index = () => {
             <a href="#features" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">Features</a>
             <a href="#how-it-works" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">How it works</a>
             <div className="w-px h-5 bg-slate-200" />
-            <form onSubmit={handleExamKeySubmit} className="flex items-center gap-2">
-              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)}
-                className="h-9 w-40 text-sm border-slate-200 focus-visible:ring-[#2563EB]" />
-              <Button type="submit" size="sm" className="h-9 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">
-                Go <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </form>
+            <Button asChild className="h-9 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold text-sm">
+              <Link to="/student">Student Login</Link>
+            </Button>
             <Button asChild className="h-9 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold text-sm">
-              <Link to="/login">Sign In</Link>
+              <Link to="/login">Teacher Sign In</Link>
             </Button>
           </div>
 
@@ -117,12 +113,11 @@ const Index = () => {
 
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-100 px-4 py-4 space-y-3">
-            <form onSubmit={handleExamKeySubmit} className="flex gap-2">
-              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)} className="flex-1 h-10" />
-              <Button type="submit" className="h-10 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">Go</Button>
-            </form>
+            <Button asChild className="w-full h-10 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">
+              <Link to="/student">Student Login</Link>
+            </Button>
             <Button asChild className="w-full h-10 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold">
-              <Link to="/login">Sign In</Link>
+              <Link to="/login">Teacher Sign In</Link>
             </Button>
           </div>
         )}
@@ -194,14 +189,14 @@ const Index = () => {
                         <GraduationCap className="h-8 w-8 text-white" />
                       </div>
                       <h3 className="text-xl font-bold text-[#0F172A]">Student Portal</h3>
-                      <p className="text-sm text-slate-500 mt-1">Enter your exam key to begin</p>
+                      <p className="text-sm text-slate-500 mt-1">Sign in with your Student ID</p>
                     </div>
                     <div className="flex gap-2 mb-4">
                       <div className="flex-1 h-11 px-4 rounded-xl border-2 border-slate-200 text-sm text-slate-400 flex items-center bg-slate-50">
-                        Enter exam key…
+                        Student ID & Password
                       </div>
                       <div className="h-11 px-5 rounded-xl bg-[#22C55E] text-white font-bold text-sm flex items-center shadow-md shadow-green-500/25">
-                        Next
+                        Login
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
