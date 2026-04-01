@@ -166,19 +166,35 @@ const StudentDashboard = () => {
       toast({ title: "Passwords do not match", variant: "destructive" });
       return;
     }
+    
+    if (!studentDbId) {
+      toast({ title: "Error", description: "Student ID not found. Please log in again.", variant: "destructive" });
+      return;
+    }
+    
     setSavingPw(true);
     try {
       // Update password in students table
-      const { error } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from("students")
         .update({ 
           password: newPassword, 
           must_change_password: false,
           updated_at: new Date().toISOString()
         })
-        .eq("id", studentDbId!);
+        .eq("id", studentDbId)
+        .select("password, must_change_password");
       
-      if (error) throw error;
+      if (updateError) throw updateError;
+      
+      if (!updateData || updateData.length === 0) {
+        throw new Error("No student record was updated. Please try again.");
+      }
+      
+      // Verify the update worked
+      if (updateData[0].password !== newPassword) {
+        throw new Error("Password update verification failed");
+      }
       
       // Update session storage
       sessionStorage.setItem("student_must_change_pw", "false");
@@ -190,7 +206,7 @@ const StudentDashboard = () => {
       
       toast({ 
         title: "Password changed successfully!", 
-        description: "Your new password has been saved securely."
+        description: "Your new password has been saved and verified."
       });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
