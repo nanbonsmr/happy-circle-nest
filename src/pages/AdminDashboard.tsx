@@ -271,13 +271,12 @@ const AdminDashboard = () => {
       if (editingStudent) {
         // UPDATE
         const { error } = await supabase.from("students")
-          .update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() })
+          .update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender })
           .eq("id", editingStudent.id);
         if (error) throw error;
-        // Optimistic UI update
         setStudents((prev) => prev.map((s) =>
           s.id === editingStudent.id
-            ? { ...s, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }
+            ? { ...s, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender }
             : s
         ));
         toast({ title: "Student updated successfully." });
