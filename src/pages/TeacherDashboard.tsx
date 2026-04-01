@@ -288,15 +288,42 @@ const TeacherDashboard = () => {
   const handleSendResults = async (examId: string) => {
     setSendingId(examId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const { data, error } = await supabase.functions.invoke("send-exam-results", {
-        body: { examId, senderEmail: profileEmail || session.user.email, senderName: userName },
+      const { data, error } = await supabase.rpc('send_exam_results_as_notifications', {
+        exam_id_param: examId
       });
+
       if (error) throw error;
-      const sent = (data as any)?.sent ?? 0;
-      toast({ title: sent > 0 ? `Results sent to ${sent} student${sent !== 1 ? "s" : ""}!` : "No submitted results to send." });
-    } catch (err: any) { toast({ title: "Send failed", description: err.message, variant: "destructive" }); }
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const sent = data?.sent ?? 0;
+      const total = data?.total ?? 0;
+      
+      if (sent > 0) {
+        toast({ 
+          title: `Results sent to ${sent} student${sent !== 1 ? "s" : ""}!`,
+          description: "Students can view their results in their dashboard."
+        });
+      } else if (total === 0) {
+        toast({ 
+          title: "No submitted results to send",
+          description: "No students have submitted this exam yet."
+        });
+      } else {
+        toast({ 
+          title: "No results sent",
+          description: "Unable to send results to students."
+        });
+      }
+    } catch (err: any) { 
+      toast({ 
+        title: "Send failed", 
+        description: err.message, 
+        variant: "destructive" 
+      }); 
+    }
     setSendingId(null);
   };
 

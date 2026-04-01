@@ -37,11 +37,17 @@ export const ChangePasswordForm = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) throw new Error("Not authenticated.");
 
+      // For admin users, we need to verify the current password differently
+      // Try to sign in with current credentials to verify
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
       });
-      if (signInError) throw new Error("Current password is incorrect.");
+      
+      if (signInError) {
+        // If sign in fails, the current password is wrong
+        throw new Error("Current password is incorrect.");
+      }
 
       // Update to new password
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
