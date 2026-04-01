@@ -98,15 +98,11 @@ const Index = () => {
             <a href="#features" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">Features</a>
             <a href="#how-it-works" className="text-sm text-slate-600 hover:text-[#2563EB] font-medium transition-colors">How it works</a>
             <div className="w-px h-5 bg-slate-200" />
-            <form onSubmit={handleExamKeySubmit} className="flex items-center gap-2">
-              <Input placeholder="Enter exam key" value={examKey} onChange={(e) => setExamKey(e.target.value)}
-                className="h-9 w-40 text-sm border-slate-200 focus-visible:ring-[#2563EB]" />
-              <Button type="submit" size="sm" className="h-9 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold">
-                Go <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </form>
+            <Button asChild className="h-9 bg-[#22C55E] hover:bg-[#16a34a] text-white border-0 font-semibold text-sm">
+              <Link to="/student">Student Login</Link>
+            </Button>
             <Button asChild className="h-9 bg-[#2563EB] hover:bg-[#1d4ed8] text-white border-0 font-semibold text-sm">
-              <Link to="/login">Sign In</Link>
+              <Link to="/login">Teacher Sign In</Link>
             </Button>
           </div>
 
