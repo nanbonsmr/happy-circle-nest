@@ -810,10 +810,49 @@ const AdminDashboard = () => {
               <Label>Email (optional)</Label>
               <Input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="student@school.edu" />
             </div>
-            <div className="space-y-2">
-              <Label>Grade / Class (optional)</Label>
-              <Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Gender *</Label>
+                <select value={studentGender} onChange={(e) => setStudentGender(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Grade / Class</Label>
+                <Input value={studentGrade} onChange={(e) => setStudentGrade(e.target.value)} placeholder="e.g. Grade 10A" />
+              </div>
             </div>
+            {!editingStudent && (
+              <div className="space-y-2">
+                <Label>Default Password *</Label>
+                <div className="relative">
+                  <Input type={showStudentPw ? "text" : "password"} value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)} placeholder="Default login password" className="pr-10" />
+                  <button type="button" onClick={() => setShowStudentPw(!showStudentPw)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                    {showStudentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">Student will be required to change this on first login.</p>
+              </div>
+            )}
+            {editingStudent && (
+              <div className="space-y-2">
+                <Label>Reset Password</Label>
+                <div className="relative">
+                  <Input type={showStudentPw ? "text" : "password"} value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)} placeholder="Leave blank to keep current" className="pr-10" />
+                  <button type="button" onClick={() => setShowStudentPw(!showStudentPw)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                    {showStudentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStudentDialog(false)}>Cancel</Button>
