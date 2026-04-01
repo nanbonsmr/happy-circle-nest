@@ -1,13 +1,11 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2,
-  ShieldAlert, ShieldCheck, XCircle, AlertTriangle,
+  Clock, AlertCircle, Loader2,
+  ShieldAlert, XCircle, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -44,56 +42,6 @@ const EVENT_LABELS: Record<CheatEventType, string> = {
   inactivity: "Long inactivity",
   window_resize: "Resizing the window",
 };
-
-// ── Memoized answer options — prevents full re-render on parent state change ──
-const AnswerOptions = memo(({
-  questionId,
-  options,
-  selected,
-  onSelect,
-}: {
-  questionId: string;
-  options: { key: string; text: string }[];
-  selected: string;
-  onSelect: (questionId: string, key: string) => void;
-}) => (
-  <div className="space-y-3" role="radiogroup">
-    {options.map((opt) => {
-      const isSelected = selected === opt.key;
-      return (
-        <label
-          key={opt.key}
-          htmlFor={`opt-${questionId}-${opt.key}`}
-          onMouseDown={(e) => e.preventDefault()}
-          className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all select-none ${
-            isSelected
-              ? "border-[#1e3a5f] bg-[#1e3a5f]/5 shadow-sm ring-1 ring-[#1e3a5f]/20"
-              : "border-slate-200 hover:border-[#1e3a5f]/40 hover:bg-slate-50"
-          }`}
-        >
-          {/* Hidden native radio — handles keyboard nav + accessibility */}
-          <input
-            type="radio"
-            id={`opt-${questionId}-${opt.key}`}
-            name={`question-${questionId}`}
-            value={opt.key}
-            checked={isSelected}
-            onChange={() => onSelect(questionId, opt.key)}
-            className="sr-only"
-          />
-          {/* Custom radio circle */}
-          <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-            isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-slate-300"
-          }`}>
-            {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
-          </div>
-          <span className="font-semibold text-sm text-[#1e3a5f] shrink-0">{opt.key}.</span>
-          <span className="text-[#0f172a] leading-snug">{opt.text}</span>
-        </label>
-      );
-    })}
-  </div>
-));
 
 const CheatWarningOverlay = ({
   event, totalViolations, onDismiss, onEject,
@@ -485,10 +433,7 @@ const ExamPage = () => {
   return (
     <>
       {/* ── CSS fullscreen overlay — covers entire viewport, no browser API ── */}
-      {/* This cannot be exited by Escape, F11, or clicking — unlike browser fullscreen */}
-      <div
-        className="fixed inset-0 z-[100] bg-[#f8fafc] overflow-y-auto select-none exam-fullscreen"
-      >
+      <div className="fixed inset-0 z-[100] bg-gray-100 overflow-hidden select-none exam-fullscreen">
         {/* Warning overlay */}
         <AnimatePresence>
           {activeWarning && (
@@ -505,19 +450,13 @@ const ExamPage = () => {
           )}
         </AnimatePresence>
 
-        {/* Top bar */}
-        <div className="sticky top-0 z-[150] bg-[#1e3a5f] shadow-md">
-          <div className="container flex h-14 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-white/70">
-                Question {currentQuestion + 1} of {questions.length}
-              </span>
-              <Progress
-                value={questions.length > 0 ? ((currentQuestion + 1) / questions.length) * 100 : 0}
-                className="w-32 h-2 bg-white/20"
-              />
-            </div>
-            <div className="flex items-center gap-3">
+        {/* Minimal top bar */}
+        <div className="bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">E</span>
+              </div>
               {totalViolations > 0 && (
                 <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
                   totalViolations >= MAX_VIOLATIONS ? "bg-red-500 text-white animate-pulse"
@@ -528,144 +467,169 @@ const ExamPage = () => {
                   {totalViolations}/{MAX_VIOLATIONS} warnings
                 </div>
               )}
-              <div className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
-                securityLevel === "high" ? "bg-red-500/20 text-red-200" : "bg-green-500/20 text-green-200"
-              }`}>
-                {securityLevel === "high" ? <ShieldAlert className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                {securityLevel === "high" ? "High Security" : "Standard"}
-              </div>
-              <div className={`flex items-center gap-2 font-mono text-lg font-bold ${
-                isTimeLow ? "text-red-300 animate-pulse" : "text-white"
-              }`}>
-                <Clock className="h-4 w-4" />
-                {formatTime(timeLeft)}
-              </div>
+            </div>
+            <div className="text-sm text-gray-600">
+              MAMITU TOLA HUJUQA | 000074480
             </div>
           </div>
         </div>
 
-        {/* Question area */}
-        <div className="container max-w-2xl py-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentQuestion}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.25 }}
-            >
-              {/* Block context — instructions, paragraph, image (shown when present) */}
-              {(q.instructions || q.paragraph || q.image_url) && (
-                <div className="mb-4 space-y-3">
-                  {q.instructions && (
-                    <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                      <span className="text-lg shrink-0">📌</span>
-                      <p className="text-sm text-amber-800 whitespace-pre-wrap">{q.instructions}</p>
-                    </div>
-                  )}
-                  {q.paragraph && (
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Read carefully</span>
-                      </div>
-                      <p className="text-sm text-blue-900 whitespace-pre-wrap leading-relaxed">{q.paragraph}</p>
-                    </div>
-                  )}
-                  {q.image_url && (
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                      <img src={q.image_url} alt={q.image_caption || "Exam image"}
-                        className="w-full max-h-56 object-contain bg-slate-50" />
-                      {q.image_caption && (
-                        <p className="text-xs text-slate-500 text-center py-2 italic">{q.image_caption}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+        {/* Main content area */}
+        <div className="flex h-[calc(100vh-60px)]">
+          {/* Left side - Question content */}
+          <div className="flex-1 p-8 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentQuestion}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.25 }}
+                className="max-w-3xl"
+              >
+                {/* Section title */}
+                <h1 className="text-lg font-medium text-gray-800 mb-6">direction I</h1>
 
-              <Card className="border-slate-200 shadow-xl bg-white">
-                <CardContent className="pt-8 pb-6">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-medium text-[#1e3a5f] bg-[#1e3a5f]/10 px-2.5 py-1 rounded-full">
-                      {q.marks} marks
-                    </span>
-                    <span className="text-xs text-slate-500">{answeredCount}/{questions.length} answered</span>
+                {/* Instructions/Paragraph */}
+                {(q.instructions || q.paragraph) && (
+                  <div className="mb-6 text-sm text-gray-600 leading-relaxed">
+                    {q.instructions && <p className="mb-3">{q.instructions}</p>}
+                    {q.paragraph && <p>{q.paragraph}</p>}
                   </div>
-                  <h2 className="text-xl font-semibold mb-6 mt-4 text-[#0f172a]">{q.question_text}</h2>
+                )}
 
-                  {/* Answer options — memoized, proper radio inputs, no fullscreen interference */}
-                  <AnswerOptions
-                    questionId={q.id}
-                    options={options}
-                    selected={answers[q.id] || ""}
-                    onSelect={saveAnswer}
-                  />
-                </CardContent>
-              </Card>
-            </motion.div>
-          </AnimatePresence>
+                {/* Question */}
+                <div className="mb-6">
+                  <p className="text-base text-gray-800 font-medium mb-4">
+                    {currentQuestion + 1}.{q.marks > 1 ? ` (${q.marks} marks)` : ''} {q.question_text}
+                  </p>
 
-          {/* Navigation */}
-          <div className="flex items-center justify-between mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-              onClick={() => setCurrentQuestion((p: number) => Math.max(0, p - 1))}
-              disabled={currentQuestion === 0}
-              className="gap-2 bg-white"
-            >
-              <ChevronLeft className="h-4 w-4" /> Previous
-            </Button>
-            {isLastQuestion ? (
-              <Button
-                type="button"
-                onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                onClick={() => setShowSubmitConfirm(true)}
-                disabled={!allAnswered || submitting}
-                className="gap-2 bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-0"
-              >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {submitting ? "Submitting..." : "Submit Exam"}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                onClick={() => setCurrentQuestion((p: number) => Math.min(questions.length - 1, p + 1))}
-                className="gap-2 bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-0"
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
+                  {/* Answer options */}
+                  <div className="space-y-3">
+                    {options.map((opt) => {
+                      const isSelected = answers[q.id] === opt.key;
+                      return (
+                        <label
+                          key={opt.key}
+                          htmlFor={`opt-${q.id}-${opt.key}`}
+                          className="flex items-start gap-3 cursor-pointer group"
+                        >
+                          <div className={`mt-1 h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                            isSelected ? "border-blue-600 bg-blue-600" : "border-gray-300 group-hover:border-blue-400"
+                          }`}>
+                            {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="font-medium text-gray-700">{opt.key}.</span>
+                            <span className="text-gray-700">{opt.text}</span>
+                          </div>
+                          <input
+                            type="radio"
+                            id={`opt-${q.id}-${opt.key}`}
+                            name={`question-${q.id}`}
+                            value={opt.key}
+                            checked={isSelected}
+                            onChange={() => saveAnswer(q.id, opt.key)}
+                            className="sr-only"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Image if present */}
+                {q.image_url && (
+                  <div className="mb-6">
+                    <img src={q.image_url} alt={q.image_caption || "Exam image"}
+                      className="max-w-full h-auto border border-gray-200 rounded" />
+                    {q.image_caption && (
+                      <p className="text-xs text-gray-500 mt-2 italic">{q.image_caption}</p>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
-          {!allAnswered && isLastQuestion && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              Please answer all questions before submitting.
+          {/* Right side - Timer and Navigation */}
+          <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col">
+            {/* Timer */}
+            <div className="mb-6">
+              <div className={`inline-flex items-center gap-2 px-3 py-2 border rounded text-sm font-mono ${
+                isTimeLow ? "border-red-300 bg-red-50 text-red-700" : "border-gray-300 bg-gray-50 text-gray-700"
+              }`}>
+                <Clock className="h-4 w-4" />
+                {Math.floor(timeLeft / 3600).toString().padStart(2, '0')}:
+                {Math.floor((timeLeft % 3600) / 60).toString().padStart(2, '0')}:
+                {(timeLeft % 60).toString().padStart(2, '0')}
+              </div>
             </div>
-          )}
 
-          {/* Question indicators */}
-          <div className="mt-8 flex flex-wrap gap-2 justify-center pb-8">
-            {questions.map((qu: Question, i: number) => (
-              <button
-                key={qu.id}
+            {/* Question navigation grid */}
+            <div className="flex-1">
+              <div className="grid grid-cols-5 gap-2 mb-6">
+                {questions.map((qu: Question, i: number) => (
+                  <button
+                    key={qu.id}
+                    type="button"
+                    onClick={() => setCurrentQuestion(i)}
+                    className={`h-8 w-8 text-xs font-medium rounded transition-all ${
+                      i === currentQuestion
+                        ? "bg-blue-600 text-white"
+                        : answers[qu.id]
+                        ? "bg-green-100 text-green-700 border border-green-300"
+                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCurrentQuestion((p: number) => Math.max(0, p - 1))}
+                  disabled={currentQuestion === 0}
+                  className="flex-1 text-sm"
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setCurrentQuestion((p: number) => Math.min(questions.length - 1, p + 1))}
+                  disabled={currentQuestion === questions.length - 1}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                >
+                  Next
+                </Button>
+              </div>
+              <Button
                 type="button"
-                onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()}
-                onClick={() => setCurrentQuestion(i)}
-                className={`h-9 w-9 rounded-lg text-sm font-medium transition-all ${
-                  i === currentQuestion
-                    ? "bg-[#1e3a5f] text-white shadow-md"
-                    : answers[qu.id]
-                    ? "bg-green-100 text-green-700 border border-green-200"
-                    : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
-                }`}
+                onClick={() => setShowSubmitConfirm(true)}
+                disabled={!allAnswered || submitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm"
               >
-                {i + 1}
-              </button>
-            ))}
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Exam"
+                )}
+              </Button>
+            </div>
+
+            {/* Status indicator */}
+            <div className="mt-4 text-xs text-gray-500 text-center">
+              {answeredCount}/{questions.length} questions answered
+            </div>
           </div>
         </div>
       </div>
