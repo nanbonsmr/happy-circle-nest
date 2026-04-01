@@ -114,6 +114,7 @@ export type Database = {
           duration_minutes: number
           id: string
           max_participants: number | null
+          results_published: boolean
           security_level: string
           started_at: string | null
           status: string
@@ -129,6 +130,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          results_published?: boolean
           security_level?: string
           started_at?: string | null
           status?: string
@@ -144,6 +146,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          results_published?: boolean
           security_level?: string
           started_at?: string | null
           status?: string
@@ -293,6 +296,7 @@ export type Database = {
       }
       students: {
         Row: {
+          avatar_url: string | null
           created_at: string
           created_by: string | null
           email: string | null
@@ -300,9 +304,12 @@ export type Database = {
           gender: string
           grade: string | null
           id: string
+          must_change_password: boolean
+          password: string
           student_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           email?: string | null
@@ -310,9 +317,12 @@ export type Database = {
           gender?: string
           grade?: string | null
           id?: string
+          must_change_password?: boolean
+          password?: string
           student_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           email?: string | null
@@ -320,6 +330,8 @@ export type Database = {
           gender?: string
           grade?: string | null
           id?: string
+          must_change_password?: boolean
+          password?: string
           student_id?: string
         }
         Relationships: []
