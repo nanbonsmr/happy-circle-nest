@@ -199,24 +199,30 @@ const AdminDashboard = () => {
 
   const handleDeleteTeacher = async () => {
     if (!deleteTeacher) return;
+    // Optimistic UI removal immediately
+    setTeachers((prev) => prev.filter((t) => t.id !== deleteTeacher.id));
+    const removed = deleteTeacher;
+    setDeleteTeacher(null);
     try {
-      // 1. Remove teacher role (prevents login as teacher)
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", deleteTeacher.id)
-        .eq("role", "teacher");
-      if (roleError) throw roleError;
-
-      // 2. Optimistic UI removal
-      setTeachers((prev) => prev.filter((t) => t.id !== deleteTeacher.id));
-      setDeleteTeacher(null);
-      toast({ title: "Teacher removed successfully." });
-
-      // 3. Refresh to sync counts
+      const { data, error } = await supabase.functions.invoke("delete-teacher", {
+        body: { teacher_id: removed.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.warning) {
+        // Partial success — auth user not deleted but DB is clean
+        toast({
+          title: "Teacher removed.",
+          description: (data as any).warning,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Teacher deleted completely.", description: "Removed from auth and database." });
+      }
       await loadData();
     } catch (error: any) {
-      toast({ title: "Error removing teacher", description: error.message, variant: "destructive" });
+      // Rollback on failure
+      setTeachers((prev) => [...prev, removed].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+      toast({ title: "Error deleting teacher", description: error.message, variant: "destructive" });
     }
   };
 
@@ -839,14 +845,14 @@ const AdminDashboard = () => {
       <AlertDialog open={!!deleteTeacher} onOpenChange={(o) => !o && setDeleteTeacher(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Teacher?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Teacher Account?</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove <strong>{deleteTeacher?.full_name}</strong> from the system? Their exams and student data will remain.
+              This will permanently delete <strong>{deleteTeacher?.full_name}</strong> ({deleteTeacher?.email}) from the system including their auth account, profile, all exams, questions, and student sessions. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteTeacher} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteTeacher} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Permanently</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
