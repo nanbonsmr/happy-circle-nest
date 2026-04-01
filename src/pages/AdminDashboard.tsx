@@ -182,27 +182,42 @@ const AdminDashboard = () => {
         setShowTeacherDialog(false);
         toast({ title: "Teacher updated successfully." });
       } else {
-        // CREATE via edge function — does NOT sign in the new user or affect admin session
+        // CREATE new teacher - use direct auth.admin instead of edge function
         if (teacherPassword.length < 6) throw new Error("Password must be at least 6 characters.");
 
-        const { data, error } = await supabase.functions.invoke("create-teacher", {
-          body: {
-            email: teacherEmail.trim(),
-            password: teacherPassword,
-            full_name: teacherName.trim(),
-          },
+        // Create user directly using auth.admin
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: teacherEmail.trim(),
+          password: teacherPassword,
+          email_confirm: true,
+          user_metadata: { full_name: teacherName.trim() || "" },
         });
 
-        if (error) {
-          throw new Error(`Function error: ${error.message}`);
-        }
-        
-        if (data?.error) {
-          throw new Error(data.error);
+        if (authError) throw new Error(`User creation failed: ${authError.message}`);
+        if (!authData.user) throw new Error("User creation returned no data");
+
+        // The trigger will automatically create profile and assign teacher role
+        // Wait a moment for trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Verify the user was created properly
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          // Clean up if something went wrong
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          throw new Error("Profile creation failed");
         }
 
-        if (!data?.success) {
-          throw new Error("Teacher creation failed - unexpected response");
+        // Update profile with full name if provided
+        if (teacherName.trim()) {
+          await supabase.from("profiles").update({
+            full_name: teacherName.trim(),
+          }).eq("id", authData.user.id);
         }
 
         setShowTeacherDialog(false);
@@ -249,15 +264,12 @@ const AdminDashboard = () => {
       await supabase.from("user_roles").delete().eq("user_id", teacherId);
       await supabase.from("profiles").delete().eq("id", teacherId);
 
-      // 3. Try to delete auth user via edge function (works if deployed)
-      //    Falls back gracefully — DB is already clean so login is impossible
+      // 3. Delete auth user directly
       try {
-        await supabase.functions.invoke("delete-teacher", {
-          body: { teacher_id: teacherId },
-        });
-      } catch {
-        // Edge function not deployed — DB deletion above is sufficient
-        // Teacher has no role/profile so they cannot access any dashboard
+        await supabase.auth.admin.deleteUser(teacherId);
+      } catch (authError: any) {
+        // Auth deletion failed, but DB is clean so teacher can't access anything
+        console.warn("Auth user deletion failed:", authError.message);
       }
 
       toast({ title: "Teacher deleted successfully.", description: "All data removed from the system." });
