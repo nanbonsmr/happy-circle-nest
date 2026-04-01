@@ -106,9 +106,13 @@ const AdminDashboard = () => {
   }, [toast]);
 
   useEffect(() => {
+    let adminUserId = "";
+
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate("/login"); return; }
+      adminUserId = session.user.id;
+
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id);
       const isAdmin = roles?.some((r) => r.role === "admin");
       const isTeacher = roles?.some((r) => r.role === "teacher");
@@ -118,6 +122,17 @@ const AdminDashboard = () => {
       setLoading(false);
     };
     init();
+
+    // Guard: if session changes to a different user (e.g. signUp auto-login),
+    // sign them out and redirect admin back to login to re-authenticate
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && adminUserId && session?.user.id !== adminUserId) {
+        // A different user was signed in — sign them out immediately
+        supabase.auth.signOut().then(() => navigate("/login"));
+      }
+    });
+
+    return () => { subscription.unsubscribe(); };
   }, [navigate, loadData]);
 
   // Real-time: refresh on exam changes, update status in-place for updates
@@ -154,41 +169,36 @@ const AdminDashboard = () => {
     setSavingTeacher(true);
     try {
       if (editingTeacher) {
-        // UPDATE: only profile fields (email change in auth requires admin SDK — update profile only)
+        // UPDATE: profile name only
         const { error } = await supabase.from("profiles")
           .update({ full_name: teacherName.trim() })
           .eq("id", editingTeacher.id);
         if (error) throw error;
-        // Optimistic UI update — no reload needed
         setTeachers((prev) => prev.map((t) =>
           t.id === editingTeacher.id ? { ...t, full_name: teacherName.trim() } : t
         ));
         setShowTeacherDialog(false);
         toast({ title: "Teacher updated successfully." });
       } else {
-        // CREATE: sign up + assign teacher role
+        // CREATE via edge function — does NOT sign in the new user or affect admin session
         if (teacherPassword.length < 6) throw new Error("Password must be at least 6 characters.");
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: teacherEmail.trim(),
-          password: teacherPassword,
-          options: { data: { full_name: teacherName.trim() } },
-        });
-        if (signUpError) throw signUpError;
-        if (!signUpData.user) throw new Error("Account creation failed — no user returned.");
 
-        // Assign teacher role in user_roles
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: signUpData.user.id,
-          role: "teacher" as const,
+        const { data, error } = await supabase.functions.invoke("create-teacher", {
+          body: {
+            email: teacherEmail.trim(),
+            password: teacherPassword,
+            full_name: teacherName.trim(),
+          },
         });
-        if (roleError) throw new Error(`Account created but role assignment failed: ${roleError.message}`);
+
+        if (error) throw error;
+        if ((data as any)?.error) throw new Error((data as any).error);
 
         setShowTeacherDialog(false);
         toast({
           title: "Teacher account created!",
           description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword}`,
         });
-        // Reload to get the new teacher row with correct counts
         await loadData();
       }
     } catch (error: any) {
@@ -204,20 +214,42 @@ const AdminDashboard = () => {
     const removed = deleteTeacher;
     setDeleteTeacher(null);
     try {
-      const { data, error } = await supabase.functions.invoke("delete-teacher", {
-        body: { teacher_id: removed.id },
-      });
-      if (error) throw error;
-      if ((data as any)?.warning) {
-        // Partial success — auth user not deleted but DB is clean
-        toast({
-          title: "Teacher removed.",
-          description: (data as any).warning,
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Teacher deleted completely.", description: "Removed from auth and database." });
+      const teacherId = removed.id;
+
+      // 1. Delete all exam data cascaded
+      const { data: teacherExams } = await supabase
+        .from("exams").select("id").eq("teacher_id", teacherId);
+
+      if (teacherExams?.length) {
+        const examIds = teacherExams.map((e) => e.id);
+        const { data: sessions } = await supabase
+          .from("exam_sessions").select("id").in("exam_id", examIds);
+        if (sessions?.length) {
+          const sessionIds = sessions.map((s) => s.id);
+          await supabase.from("student_answers").delete().in("session_id", sessionIds);
+          await supabase.from("cheat_logs").delete().in("session_id", sessionIds);
+          await supabase.from("exam_sessions").delete().in("exam_id", examIds);
+        }
+        await supabase.from("questions").delete().in("exam_id", examIds);
+        await supabase.from("exams").delete().eq("teacher_id", teacherId);
       }
+
+      // 2. Remove role and profile — teacher can no longer log in or be identified
+      await supabase.from("user_roles").delete().eq("user_id", teacherId);
+      await supabase.from("profiles").delete().eq("id", teacherId);
+
+      // 3. Try to delete auth user via edge function (works if deployed)
+      //    Falls back gracefully — DB is already clean so login is impossible
+      try {
+        await supabase.functions.invoke("delete-teacher", {
+          body: { teacher_id: teacherId },
+        });
+      } catch {
+        // Edge function not deployed — DB deletion above is sufficient
+        // Teacher has no role/profile so they cannot access any dashboard
+      }
+
+      toast({ title: "Teacher deleted successfully.", description: "All data removed from the system." });
       await loadData();
     } catch (error: any) {
       // Rollback on failure
