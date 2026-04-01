@@ -422,6 +422,24 @@ const CreateExam = () => {
                   </p>
                 </div>
 
+                {/* Exam Status (only when editing) */}
+                {isEditing && (
+                  <div className="space-y-2">
+                    <Label>Exam Status</Label>
+                    <select
+                      value={examStatus}
+                      onChange={(e) => setExamStatus(e.target.value as any)}
+                      className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">Change the exam status (e.g. reopen a completed exam)</p>
+                  </div>
+                )}
+
               </CardContent>
             </Card>
           </motion.div>
