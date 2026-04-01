@@ -194,14 +194,14 @@ const Index = () => {
                         <GraduationCap className="h-8 w-8 text-white" />
                       </div>
                       <h3 className="text-xl font-bold text-[#0F172A]">Student Portal</h3>
-                      <p className="text-sm text-slate-500 mt-1">Enter your exam key to begin</p>
+                      <p className="text-sm text-slate-500 mt-1">Sign in with your Student ID</p>
                     </div>
                     <div className="flex gap-2 mb-4">
                       <div className="flex-1 h-11 px-4 rounded-xl border-2 border-slate-200 text-sm text-slate-400 flex items-center bg-slate-50">
-                        Enter exam key…
+                        Student ID & Password
                       </div>
                       <div className="h-11 px-5 rounded-xl bg-[#22C55E] text-white font-bold text-sm flex items-center shadow-md shadow-green-500/25">
-                        Next
+                        Login
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
