@@ -270,9 +270,12 @@ const AdminDashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingStudent) {
         // UPDATE
-        const { error } = await supabase.from("students")
-          .update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender })
-          .eq("id", editingStudent.id);
+        const updateData: any = { full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), gender: studentGender };
+        if (studentPassword.trim()) {
+          updateData.password = studentPassword.trim();
+          updateData.must_change_password = true;
+        }
+        const { error } = await supabase.from("students").update(updateData).eq("id", editingStudent.id);
         if (error) throw error;
         setStudents((prev) => prev.map((s) =>
           s.id === editingStudent.id
