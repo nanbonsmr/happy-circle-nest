@@ -495,6 +495,14 @@ const TeacherDashboard = () => {
                               <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
                                 {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                               </button>
+                              <button type="button" onClick={async () => {
+                                const newVal = !(exam as any).results_published;
+                                await supabase.from("exams").update({ results_published: newVal } as any).eq("id", exam.id);
+                                setExams(prev => prev.map(e => e.id === exam.id ? { ...e, results_published: newVal } as any : e));
+                                toast({ title: newVal ? "Results published to students" : "Results hidden from students" });
+                              }} className={`p-1.5 rounded-lg ${(exam as any).results_published ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`} title={`${(exam as any).results_published ? 'Hide' : 'Publish'} results for students`}>
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
                               <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </td>
