@@ -193,8 +193,17 @@ const AdminDashboard = () => {
           },
         });
 
-        if (error) throw error;
-        if ((data as any)?.error) throw new Error((data as any).error);
+        if (error) {
+          throw new Error(`Function error: ${error.message}`);
+        }
+        
+        if (data?.error) {
+          throw new Error(data.error);
+        }
+
+        if (!data?.success) {
+          throw new Error("Teacher creation failed - unexpected response");
+        }
 
         setShowTeacherDialog(false);
         toast({
