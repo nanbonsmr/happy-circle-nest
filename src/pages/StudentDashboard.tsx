@@ -174,70 +174,76 @@ const StudentDashboard = () => {
     
     setSavingPw(true);
     try {
-      // First, let's verify the student exists and we can read it
-      const { data: existingStudent, error: readError } = await supabase
-        .from("students")
-        .select("id, student_id, password, must_change_password")
-        .eq("id", studentDbId)
-        .single();
+      console.log("Attempting to update password for student ID:", studentDbId);
       
-      if (readError) {
-        throw new Error(`Cannot find student record: ${readError.message}`);
-      }
-      
-      if (!existingStudent) {
-        throw new Error("Student record not found. Please log in again.");
-      }
-      
-      // Try using the database function first (bypasses RLS issues)
-      const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
-        student_db_id: studentDbId,
-        new_password: newPassword
-      });
-      
-      if (functionError) {
-        console.error("Function error:", functionError);
-        // Fallback to direct update
-        const { data: updateData, error: updateError } = await supabase
-          .from("students")
-          .update({ 
-            password: newPassword, 
-            must_change_password: false
-          })
-          .eq("id", studentDbId)
-          .select("id, password, must_change_password");
+      // Method 1: Try the database function first (most reliable)
+      try {
+        const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
+          student_db_id: studentDbId,
+          new_password: newPassword.trim()
+        });
         
-        if (updateError) {
-          throw new Error(`Update failed: ${updateError.message}`);
-        }
+        console.log("Function result:", functionResult, "Function error:", functionError);
         
-        if (!updateData || updateData.length === 0) {
-          throw new Error("No student record was updated. This might be a permissions issue.");
+        if (!functionError && functionResult?.success) {
+          console.log("Database function succeeded");
+          
+          // Update session storage
+          sessionStorage.setItem("student_must_change_pw", "false");
+          sessionStorage.setItem("student_password", newPassword.trim());
+          
+          setMustChangePw(false);
+          setNewPassword("");
+          setConfirmPassword("");
+          
+          toast({ 
+            title: "Password changed successfully!", 
+            description: "Your new password has been saved. You can now use it to log in."
+          });
+          return; // Success, exit early
+        } else {
+          console.log("Database function failed, trying direct update...");
+          if (functionResult?.error) {
+            console.error("Function returned error:", functionResult.error);
+          }
         }
-      } else if (functionResult?.error) {
-        throw new Error(functionResult.error);
-      } else if (!functionResult?.success) {
-        throw new Error("Password update function failed");
+      } catch (funcErr) {
+        console.log("Database function not available, trying direct update...");
       }
       
-      // Verify the update worked by reading again
-      const { data: verifyData, error: verifyError } = await supabase
+      // Method 2: Direct table update (fallback)
+      console.log("Attempting direct table update...");
+      const { data: updateData, error: updateError } = await supabase
         .from("students")
-        .select("password, must_change_password")
+        .update({ 
+          password: newPassword.trim(), 
+          must_change_password: false
+        })
         .eq("id", studentDbId)
-        .single();
+        .select("id, password, must_change_password");
       
-      if (verifyError || !verifyData) {
-        throw new Error("Failed to verify password update");
+      console.log("Direct update result:", { updateData, updateError });
+      
+      if (updateError) {
+        throw new Error(`Direct update failed: ${updateError.message}`);
       }
       
-      if (verifyData.password !== newPassword) {
-        throw new Error("Password verification failed - update may not have been saved");
+      if (!updateData || updateData.length === 0) {
+        // Method 3: Try using service role (if available)
+        console.log("Direct update returned no rows, this is likely an RLS permission issue");
+        throw new Error("Unable to update password due to database permissions. Please contact your administrator to enable student password updates.");
       }
+      
+      // Verify the update worked
+      if (updateData[0].password !== newPassword.trim()) {
+        throw new Error("Password update verification failed");
+      }
+      
+      console.log("Direct update succeeded");
       
       // Update session storage
       sessionStorage.setItem("student_must_change_pw", "false");
-      sessionStorage.setItem("student_password", newPassword);
+      sessionStorage.setItem("student_password", newPassword.trim());
       
       setMustChangePw(false);
       setNewPassword("");
@@ -245,11 +251,16 @@ const StudentDashboard = () => {
       
       toast({ 
         title: "Password changed successfully!", 
-        description: "Your new password has been saved and verified."
+        description: "Your new password has been saved. You can now use it to log in."
       });
+      
     } catch (err: any) {
       console.error("Password update error:", err);
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ 
+        title: "Password Update Failed", 
+        description: err.message || "An unexpected error occurred. Please try again or contact support.",
+        variant: "destructive" 
+      });
     }
     setSavingPw(false);
   };
