@@ -12,6 +12,7 @@ import ExamComplete from "./pages/ExamComplete";
 import AdminLogin from "./pages/AdminLogin";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import CreateExam from "./pages/CreateExam";
 import StudentEntry from "./pages/StudentEntry";
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/teacher/create" element={<CreateExam />} />
           <Route path="/teacher/edit/:examId" element={<CreateExam />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
