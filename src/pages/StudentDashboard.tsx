@@ -174,25 +174,65 @@ const StudentDashboard = () => {
     
     setSavingPw(true);
     try {
-      // Update password in students table
-      const { data: updateData, error: updateError } = await supabase
+      // First, let's verify the student exists and we can read it
+      const { data: existingStudent, error: readError } = await supabase
         .from("students")
-        .update({ 
-          password: newPassword, 
-          must_change_password: false
-        })
+        .select("id, student_id, password, must_change_password")
         .eq("id", studentDbId)
-        .select("password, must_change_password");
+        .single();
       
-      if (updateError) throw updateError;
-      
-      if (!updateData || updateData.length === 0) {
-        throw new Error("No student record was updated. Please try again.");
+      if (readError) {
+        throw new Error(`Cannot find student record: ${readError.message}`);
       }
       
-      // Verify the update worked
-      if (updateData[0].password !== newPassword) {
-        throw new Error("Password update verification failed");
+      if (!existingStudent) {
+        throw new Error("Student record not found. Please log in again.");
+      }
+      
+      // Try using the database function first (bypasses RLS issues)
+      const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
+        student_db_id: studentDbId,
+        new_password: newPassword
+      });
+      
+      if (functionError) {
+        console.error("Function error:", functionError);
+        // Fallback to direct update
+        const { data: updateData, error: updateError } = await supabase
+          .from("students")
+          .update({ 
+            password: newPassword, 
+            must_change_password: false
+          })
+          .eq("id", studentDbId)
+          .select("id, password, must_change_password");
+        
+        if (updateError) {
+          throw new Error(`Update failed: ${updateError.message}`);
+        }
+        
+        if (!updateData || updateData.length === 0) {
+          throw new Error("No student record was updated. This might be a permissions issue.");
+        }
+      } else if (functionResult?.error) {
+        throw new Error(functionResult.error);
+      } else if (!functionResult?.success) {
+        throw new Error("Password update function failed");
+      }
+      
+      // Verify the update worked by reading again
+      const { data: verifyData, error: verifyError } = await supabase
+        .from("students")
+        .select("password, must_change_password")
+        .eq("id", studentDbId)
+        .single();
+      
+      if (verifyError || !verifyData) {
+        throw new Error("Failed to verify password update");
+      }
+      
+      if (verifyData.password !== newPassword) {
+        throw new Error("Password verification failed - update may not have been saved");
       }
       
       // Update session storage
@@ -208,6 +248,7 @@ const StudentDashboard = () => {
         description: "Your new password has been saved and verified."
       });
     } catch (err: any) {
+      console.error("Password update error:", err);
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
     setSavingPw(false);
