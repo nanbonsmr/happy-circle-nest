@@ -179,8 +179,7 @@ const StudentDashboard = () => {
         .from("students")
         .update({ 
           password: newPassword, 
-          must_change_password: false,
-          updated_at: new Date().toISOString()
+          must_change_password: false
         })
         .eq("id", studentDbId)
         .select("password, must_change_password");
