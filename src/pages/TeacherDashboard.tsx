@@ -201,18 +201,29 @@ const TeacherDashboard = () => {
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
   const handleStartExam = async (examId: string) => {
-    const { error } = await supabase.from("exams").update({ status: "active", started_at: new Date().toISOString() }).eq("id", examId);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "active", started_at: new Date().toISOString() } : e));
+    const startedAt = new Date().toISOString();
+    // Optimistic update
+    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "active", started_at: startedAt } : e));
+    const { error } = await supabase.from("exams").update({ status: "active", started_at: startedAt }).eq("id", examId);
+    if (error) {
+      // Rollback
+      setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "published", started_at: null } : e));
+      toast({ title: "Failed to start exam", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Exam started!", description: "Students can now begin." });
   };
 
   const handleStopExam = async (examId: string) => {
     setStoppingId(examId);
+    // Optimistic update
+    setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "completed" } : e));
     const { error } = await supabase.from("exams").update({ status: "completed" }).eq("id", examId);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
-    else {
-      setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "completed" } : e));
+    if (error) {
+      // Rollback
+      setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "active" } : e));
+      toast({ title: "Failed to stop exam", description: error.message, variant: "destructive" });
+    } else {
       toast({ title: "Exam stopped." });
     }
     setStoppingId(null);
@@ -227,11 +238,21 @@ const TeacherDashboard = () => {
     if (!editingExam || !editTitle.trim()) return;
     setEditSaving(true);
     const dur = parseInt(editDuration) || 30;
-    const { error } = await supabase.from("exams").update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur }).eq("id", editingExam.id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
-    else {
-      setExams((prev) => prev.map((e) => e.id === editingExam.id ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur } : e));
-      toast({ title: "Exam updated!" }); setEditingExam(null);
+    // Snapshot for rollback
+    const prev = { title: editingExam.title, subject: editingExam.subject, duration_minutes: editingExam.duration_minutes };
+    // Optimistic update
+    setExams((list) => list.map((e) => e.id === editingExam.id
+      ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur } : e));
+    setEditingExam(null);
+    const { error } = await supabase.from("exams")
+      .update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur })
+      .eq("id", editingExam.id);
+    if (error) {
+      // Rollback
+      setExams((list) => list.map((e) => e.id === editingExam.id ? { ...e, ...prev } : e));
+      toast({ title: "Failed to update exam", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Exam updated successfully." });
     }
     setEditSaving(false);
   };
@@ -239,6 +260,10 @@ const TeacherDashboard = () => {
   const handleDeleteExam = async () => {
     if (!deletingExamId) return;
     setDeleteLoading(true);
+    // Optimistic removal
+    const removed = exams.find((e) => e.id === deletingExamId);
+    setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
+    setDeletingExamId(null);
     try {
       const { data: sessions } = await supabase.from("exam_sessions").select("id").eq("exam_id", deletingExamId);
       if (sessions?.length) {
@@ -250,11 +275,14 @@ const TeacherDashboard = () => {
       await supabase.from("questions").delete().eq("exam_id", deletingExamId);
       const { error } = await supabase.from("exams").delete().eq("id", deletingExamId);
       if (error) throw error;
-      setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
       setReportsLoaded(false);
-      toast({ title: "Exam deleted." });
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    setDeleteLoading(false); setDeletingExamId(null);
+      toast({ title: "Exam deleted successfully." });
+    } catch (err: any) {
+      // Rollback on failure
+      if (removed) setExams((prev) => [removed, ...prev]);
+      toast({ title: "Error deleting exam", description: err.message, variant: "destructive" });
+    }
+    setDeleteLoading(false);
   };
 
   const handleSendResults = async (examId: string) => {
@@ -277,21 +305,48 @@ const TeacherDashboard = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+      // Ensure unique code
       const newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
       const { data: newExam, error: examErr } = await supabase.from("exams").insert({
-        teacher_id: user.id, title: `${exam.title} (Copy)`, subject: exam.subject,
-        duration_minutes: exam.duration_minutes, access_code: newCode, status: "published",
-        max_participants: exam.max_participants, security_level: exam.security_level || "low",
-      } as any).select().single();
+        teacher_id: user.id,
+        title: `${exam.title} (Copy)`,
+        subject: exam.subject,
+        duration_minutes: exam.duration_minutes,
+        access_code: newCode,
+        status: "published",
+        max_participants: exam.max_participants,
+        security_level: exam.security_level,
+      }).select().single();
       if (examErr) throw examErr;
       const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", exam.id).order("question_order");
       if (qs?.length) {
-        const cloned = qs.map((q: any) => ({ ...q, id: undefined, exam_id: newExam.id, created_at: undefined }));
-        await supabase.from("questions").insert(cloned);
+        const cloned = qs.map((q) => ({
+          exam_id: newExam.id,
+          question_text: q.question_text,
+          option_a: q.option_a,
+          option_b: q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+          correct_answer: q.correct_answer,
+          marks: q.marks,
+          question_order: q.question_order,
+          block_id: q.block_id,
+          block_order: q.block_order,
+          instructions: q.instructions,
+          paragraph: q.paragraph,
+          image_url: q.image_url,
+          image_caption: q.image_caption,
+        }));
+        const { error: qErr } = await supabase.from("questions").insert(cloned);
+        if (qErr) throw qErr;
       }
+      // Add cloned exam to local state immediately
+      setExams((prev) => [newExam, ...prev]);
       navigate(`/teacher/edit/${newExam.id}`);
       toast({ title: "Exam cloned!", description: "Review and edit before publishing." });
-    } catch (err: any) { toast({ title: "Clone failed", description: err.message, variant: "destructive" }); }
+    } catch (err: any) {
+      toast({ title: "Clone failed", description: err.message, variant: "destructive" });
+    }
     setCloningId(null);
   };
 
@@ -303,9 +358,15 @@ const TeacherDashboard = () => {
   const handleSaveProfile = async () => {
     if (!profileName.trim()) return;
     setSavingProfile(true);
+    const prevName = userName;
+    setUserName(profileName.trim());
     const { error } = await supabase.from("profiles").update({ full_name: profileName.trim() }).eq("id", userId);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
-    else { setUserName(profileName.trim()); toast({ title: "Profile updated!" }); }
+    if (error) {
+      setUserName(prevName);
+      toast({ title: "Failed to update profile", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Profile updated successfully." });
+    }
     setSavingProfile(false);
   };
 
