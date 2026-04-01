@@ -42,7 +42,7 @@ const AdminDashboard = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [results, setResults] = useState<SessionRow[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
-  const [activeExams, setActiveExams] = useState(0);
+  // activeExams derived from exams state — no separate state needed
   // Teacher dialog
   const [showTeacherDialog, setShowTeacherDialog] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<TeacherRow | null>(null);
@@ -92,7 +92,6 @@ const AdminDashboard = () => {
       }
       const { data: allExams } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       setExams(allExams || []);
-      setActiveExams((allExams || []).filter((e) => e.status === "active").length);
       const { data: sessions } = await supabase.from("exam_sessions").select("id, student_name, student_email, score, total_marks, status, submitted_at, exam_id");
       setTotalStudents(sessions?.length || 0);
       const examMap = new Map<string, { title: string; subject: string }>((allExams || []).map((e) => [e.id, { title: e.title, subject: e.subject || "" }]));
@@ -120,18 +119,20 @@ const AdminDashboard = () => {
     init();
   }, [navigate, loadData]);
 
-  // Real-time updates
+  // Real-time: refresh on exam changes, update status in-place for updates
   useEffect(() => {
     const ch = supabase.channel("admin-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions" }, loadData)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams" }, loadData)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "exams" }, loadData)
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "exams" }, loadData)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams" }, (payload) => {
+        setExams((prev) => prev.map((e) => e.id === payload.new.id ? { ...e, ...(payload.new as Exam) } : e));
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [loadData]);
 
   useExamAutoStatus(exams, (examId, newStatus) => {
     setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
-    if (newStatus === "completed") setActiveExams((n) => Math.max(0, n - 1));
   });
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/login"); };
@@ -152,34 +153,71 @@ const AdminDashboard = () => {
     setSavingTeacher(true);
     try {
       if (editingTeacher) {
-        const { error } = await supabase.from("profiles").update({ full_name: teacherName.trim(), email: teacherEmail.trim() }).eq("id", editingTeacher.id);
+        // UPDATE: only profile fields (email change in auth requires admin SDK — update profile only)
+        const { error } = await supabase.from("profiles")
+          .update({ full_name: teacherName.trim() })
+          .eq("id", editingTeacher.id);
         if (error) throw error;
-        toast({ title: "Teacher updated!" });
+        // Optimistic UI update — no reload needed
+        setTeachers((prev) => prev.map((t) =>
+          t.id === editingTeacher.id ? { ...t, full_name: teacherName.trim() } : t
+        ));
+        setShowTeacherDialog(false);
+        toast({ title: "Teacher updated successfully." });
       } else {
+        // CREATE: sign up + assign teacher role
         if (teacherPassword.length < 6) throw new Error("Password must be at least 6 characters.");
-        const { error } = await supabase.auth.signUp({
-          email: teacherEmail.trim(), password: teacherPassword,
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: teacherEmail.trim(),
+          password: teacherPassword,
           options: { data: { full_name: teacherName.trim() } },
         });
-        if (error) throw error;
-        toast({ title: "Teacher account created!", description: `Email: ${teacherEmail} · Password: ${teacherPassword}` });
+        if (signUpError) throw signUpError;
+        if (!signUpData.user) throw new Error("Account creation failed — no user returned.");
+
+        // Assign teacher role in user_roles
+        const { error: roleError } = await supabase.from("user_roles").insert({
+          user_id: signUpData.user.id,
+          role: "teacher" as const,
+        });
+        if (roleError) throw new Error(`Account created but role assignment failed: ${roleError.message}`);
+
+        setShowTeacherDialog(false);
+        toast({
+          title: "Teacher account created!",
+          description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword}`,
+        });
+        // Reload to get the new teacher row with correct counts
+        await loadData();
       }
-      setShowTeacherDialog(false);
-      await loadData();
-    } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
     setSavingTeacher(false);
   };
 
   const handleDeleteTeacher = async () => {
     if (!deleteTeacher) return;
     try {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", deleteTeacher.id).eq("role", "teacher");
-      if (error) throw error;
-      toast({ title: "Teacher removed." }); setDeleteTeacher(null); await loadData();
-    } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
-  };
+      // 1. Remove teacher role (prevents login as teacher)
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", deleteTeacher.id)
+        .eq("role", "teacher");
+      if (roleError) throw roleError;
 
-  const generateStudentId = (count: number) => `STU-${String(count + 1).padStart(4, "0")}`;
+      // 2. Optimistic UI removal
+      setTeachers((prev) => prev.filter((t) => t.id !== deleteTeacher.id));
+      setDeleteTeacher(null);
+      toast({ title: "Teacher removed successfully." });
+
+      // 3. Refresh to sync counts
+      await loadData();
+    } catch (error: any) {
+      toast({ title: "Error removing teacher", description: error.message, variant: "destructive" });
+    }
+  };
 
   const openAddStudent = () => { setEditingStudent(null); setStudentName(""); setStudentEmail(""); setStudentGrade(""); setShowStudentDialog(true); };
   const openEditStudent = (s: any) => { setEditingStudent(s); setStudentName(s.full_name); setStudentEmail(s.email || ""); setStudentGrade(s.grade || ""); setShowStudentDialog(true); };
@@ -190,28 +228,62 @@ const AdminDashboard = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingStudent) {
-        const { error } = await supabase.from("students").update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }).eq("id", editingStudent.id);
+        // UPDATE
+        const { error } = await supabase.from("students")
+          .update({ full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() })
+          .eq("id", editingStudent.id);
         if (error) throw error;
-        toast({ title: "Student updated!" });
+        // Optimistic UI update
+        setStudents((prev) => prev.map((s) =>
+          s.id === editingStudent.id
+            ? { ...s, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim() }
+            : s
+        ));
+        toast({ title: "Student updated successfully." });
       } else {
-        const newId = generateStudentId(students.length);
-        const { error } = await supabase.from("students").insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id });
+        // CREATE — generate ID based on current max to avoid collisions
+        const { data: lastStudent } = await supabase
+          .from("students")
+          .select("student_id")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const lastNum = lastStudent
+          ? parseInt(lastStudent.student_id.replace("STU-", ""), 10) || 0
+          : 0;
+        const newId = `STU-${String(lastNum + 1).padStart(4, "0")}`;
+
+        const { data: inserted, error } = await supabase.from("students")
+          .insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id })
+          .select()
+          .single();
         if (error) throw error;
+        // Optimistic UI insert
+        setStudents((prev) => [...prev, inserted]);
         toast({ title: "Student added!", description: `Student ID: ${newId}` });
       }
       setShowStudentDialog(false);
-      await loadData();
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
     setSavingStudent(false);
   };
 
   const handleDeleteStudent = async () => {
     if (!deleteStudentId) return;
+    // Optimistic removal first
+    const removed = students.find((s) => s.id === deleteStudentId);
+    setStudents((prev) => prev.filter((s) => s.id !== deleteStudentId));
+    setDeleteStudentId(null);
     try {
       const { error } = await supabase.from("students").delete().eq("id", deleteStudentId);
       if (error) throw error;
-      toast({ title: "Student removed." }); setDeleteStudentId(null); await loadData();
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+      toast({ title: "Student removed successfully." });
+    } catch (err: any) {
+      // Rollback on failure
+      if (removed) setStudents((prev) => [...prev, removed].sort((a, b) => a.student_id.localeCompare(b.student_id)));
+      toast({ title: "Error removing student", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleExportStudents = (format: "csv" | "xlsx") => {
@@ -275,6 +347,9 @@ const AdminDashboard = () => {
     XLSX.writeFile(wb, "exam_results.xlsx");
     toast({ title: "Exported!" });
   };
+
+  // Derived — always in sync with exams state
+  const activeExams = exams.filter((e) => e.status === "active").length;
 
   const navItems = [
     { icon: LayoutDashboard, label: "Overview", tab: "overview" },
