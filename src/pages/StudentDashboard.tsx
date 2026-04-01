@@ -168,25 +168,25 @@ const StudentDashboard = () => {
     }
     
     if (!studentDbId) {
-      toast({ title: "Error", description: "Student ID not found. Please log in again.", variant: "destructive" });
+      toast({ title: "Error", description: "Student session not found. Please log in again.", variant: "destructive" });
       return;
     }
     
     setSavingPw(true);
     try {
-      console.log("Attempting to update password for student ID:", studentDbId);
+      console.log("Student updating password for ID:", studentDbId);
       
-      // Method 1: Try the database function first (most reliable)
+      // Method 1: Use the student password update function (no admin required)
       try {
         const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
           student_db_id: studentDbId,
           new_password: newPassword.trim()
         });
         
-        console.log("Function result:", functionResult, "Function error:", functionError);
+        console.log("Student password function result:", functionResult);
         
         if (!functionError && functionResult?.success) {
-          console.log("Database function succeeded");
+          console.log("Student password update succeeded via function");
           
           // Update session storage
           sessionStorage.setItem("student_must_change_pw", "false");
@@ -202,17 +202,14 @@ const StudentDashboard = () => {
           });
           return; // Success, exit early
         } else {
-          console.log("Database function failed, trying direct update...");
-          if (functionResult?.error) {
-            console.error("Function returned error:", functionResult.error);
-          }
+          console.log("Student password function failed:", functionResult?.error || functionError?.message);
         }
-      } catch (funcErr) {
-        console.log("Database function not available, trying direct update...");
+      } catch (funcErr: any) {
+        console.log("Student password function not available:", funcErr.message);
       }
       
-      // Method 2: Direct table update (fallback)
-      console.log("Attempting direct table update...");
+      // Method 2: Direct table update (student permissions)
+      console.log("Attempting direct student password update...");
       const { data: updateData, error: updateError } = await supabase
         .from("students")
         .update({ 
@@ -222,24 +219,22 @@ const StudentDashboard = () => {
         .eq("id", studentDbId)
         .select("id, password, must_change_password");
       
-      console.log("Direct update result:", { updateData, updateError });
+      console.log("Direct student update result:", { updateData, updateError });
       
       if (updateError) {
-        throw new Error(`Direct update failed: ${updateError.message}`);
+        throw new Error(`Student password update failed: ${updateError.message}`);
       }
       
       if (!updateData || updateData.length === 0) {
-        // Method 3: Try using service role (if available)
-        console.log("Direct update returned no rows, this is likely an RLS permission issue");
-        throw new Error("Unable to update password due to database permissions. Please contact your administrator to enable student password updates.");
+        throw new Error("Unable to update student password. Please try logging out and back in, then try again.");
       }
       
       // Verify the update worked
       if (updateData[0].password !== newPassword.trim()) {
-        throw new Error("Password update verification failed");
+        throw new Error("Student password update verification failed");
       }
       
-      console.log("Direct update succeeded");
+      console.log("Direct student password update succeeded");
       
       // Update session storage
       sessionStorage.setItem("student_must_change_pw", "false");
@@ -255,10 +250,10 @@ const StudentDashboard = () => {
       });
       
     } catch (err: any) {
-      console.error("Password update error:", err);
+      console.error("Student password update error:", err);
       toast({ 
         title: "Password Update Failed", 
-        description: err.message || "An unexpected error occurred. Please try again or contact support.",
+        description: err.message || "Unable to update password. Please try again or contact support.",
         variant: "destructive" 
       });
     }

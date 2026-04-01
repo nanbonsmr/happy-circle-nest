@@ -1,57 +1,21 @@
--- Fix student password update permissions deeply
--- This migration resolves RLS policy conflicts and ensures students can update passwords
+-- Fix student password update permissions - STUDENT FOCUSED, NO ADMIN REQUIRED
+-- Students should be able to update their own passwords without any admin involvement
 
--- First, drop any existing conflicting policies on students table
+-- First, drop any existing policies that might be causing conflicts
+DROP POLICY IF EXISTS "Anonymous can update student passwords" ON public.students;
+DROP POLICY IF EXISTS "Authenticated can update student passwords" ON public.students;
+DROP POLICY IF EXISTS "Allow password updates" ON public.students;
 DROP POLICY IF EXISTS "Students can update own password" ON public.students;
-DROP POLICY IF EXISTS "Admins can manage students" ON public.students;
-DROP POLICY IF EXISTS "Teachers can read students" ON public.students;
-DROP POLICY IF EXISTS "Public can lookup students" ON public.students;
 
--- Recreate policies with clear hierarchy and no conflicts
--- 1. Admins can do everything
-CREATE POLICY "Admins can manage all students"
-  ON public.students FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.user_roles 
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- 2. Teachers can read students
-CREATE POLICY "Teachers can read students"
-  ON public.students FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.user_roles 
-      WHERE user_id = auth.uid() AND role = 'teacher'
-    )
-  );
-
--- 3. Public (including students) can read students for lookup
-CREATE POLICY "Public can read students"
-  ON public.students FOR SELECT
+-- Create a simple, direct policy that allows students to update passwords
+-- No admin checks, no complex conditions - just allow password updates
+CREATE POLICY "Students update passwords"
+  ON public.students FOR UPDATE
   TO anon, authenticated
-  USING (true);
+  USING (true)  -- Allow any user (students are anon)
+  WITH CHECK (true);  -- Allow the update
 
--- 4. CRITICAL: Allow anonymous users (students) to update their password
--- This is the key policy that was missing/conflicting
-CREATE POLICY "Anonymous can update student passwords"
-  ON public.students FOR UPDATE
-  TO anon
-  USING (true)
-  WITH CHECK (true);
-
--- Also allow authenticated users (in case student somehow gets auth)
-CREATE POLICY "Authenticated can update student passwords"
-  ON public.students FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
--- Create the database function for password updates (bypasses RLS entirely)
+-- Create the database function for password updates - NO ADMIN CHECKS
 CREATE OR REPLACE FUNCTION update_student_password(
   student_db_id UUID,
   new_password TEXT
@@ -65,7 +29,7 @@ DECLARE
   updated_count INTEGER;
   student_exists BOOLEAN;
 BEGIN
-  -- Validate inputs
+  -- Simple validation - NO ADMIN PERMISSION CHECKS
   IF student_db_id IS NULL THEN
     RETURN json_build_object('error', 'Student ID is required');
   END IF;
@@ -74,14 +38,14 @@ BEGIN
     RETURN json_build_object('error', 'Password must be at least 4 characters');
   END IF;
   
-  -- Check if student exists first
+  -- Check if student exists (simple existence check, no permissions)
   SELECT EXISTS(SELECT 1 FROM public.students WHERE id = student_db_id) INTO student_exists;
   
   IF NOT student_exists THEN
     RETURN json_build_object('error', 'Student not found');
   END IF;
   
-  -- Update the student password (this bypasses RLS because of SECURITY DEFINER)
+  -- Direct update - no permission checks, just update the password
   UPDATE public.students 
   SET 
     password = TRIM(new_password),
@@ -91,7 +55,7 @@ BEGIN
   GET DIAGNOSTICS updated_count = ROW_COUNT;
   
   IF updated_count = 0 THEN
-    RETURN json_build_object('error', 'No changes made - student may not exist');
+    RETURN json_build_object('error', 'Password update failed - no rows affected');
   END IF;
   
   RETURN json_build_object(
@@ -106,6 +70,8 @@ EXCEPTION
 END;
 $$;
 
--- Grant execute permission on the function to anonymous users
+-- Grant execute permission to EVERYONE (anon and authenticated)
+-- Students don't need special permissions - they just need to call the function
 GRANT EXECUTE ON FUNCTION update_student_password(UUID, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION update_student_password(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_student_password(UUID, TEXT) TO public;
