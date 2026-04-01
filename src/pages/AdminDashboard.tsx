@@ -199,7 +199,7 @@ const AdminDashboard = () => {
         setShowTeacherDialog(false);
         toast({
           title: "Teacher account created!",
-          description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword}`,
+          description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword} · Please share these credentials manually with the teacher.`,
         });
         await loadData();
       }
@@ -885,7 +885,7 @@ const AdminDashboard = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingTeacher ? "Edit Teacher" : "Add Teacher"}</DialogTitle>
-            <DialogDescription>{editingTeacher ? "Update teacher profile details." : "Create a new teacher account. Share the credentials with the teacher."}</DialogDescription>
+            <DialogDescription>{editingTeacher ? "Update teacher profile details." : "Create a new teacher account. You will need to manually share the credentials with the teacher."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
