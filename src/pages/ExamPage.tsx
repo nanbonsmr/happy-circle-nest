@@ -222,7 +222,7 @@ const ExamPage = () => {
         score: 0,
         total_marks: 0,
         ejected_by_violation: true,
-      } as any).eq("id", sid);
+      }).eq("id", sid);
       localStorage.removeItem(`violations_${sid}`);
       sessionStorage.removeItem(`q_pos_${sid}`);
     }
@@ -286,7 +286,7 @@ const ExamPage = () => {
       if (!exam || exam.status !== "active") { setExamEnded(true); setLoading(false); return; }
 
       setExamId(exam.id);
-      setSecurityLevel(((exam as any).security_level as SecurityLevel) || "low");
+      setSecurityLevel((exam.security_level as SecurityLevel) || "low");
 
       const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
       const endTime = startedAt + exam.duration_minutes * 60 * 1000;
@@ -311,11 +311,26 @@ const ExamPage = () => {
         }
       }
       setLoading(false);
+
+      // Real-time: detect if teacher closes exam while student is taking it
+      const examChannel = supabase.channel(`exam-status-${exam.id}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams", filter: `id=eq.${exam.id}` },
+          (payload) => {
+            if (payload.new.status !== "active") {
+              setExamEnded(true);
+            }
+          })
+        .subscribe();
+
+      return () => { supabase.removeChannel(examChannel); };
     };
-    loadExam();
+
+    let cleanupExamChannel: (() => void) | undefined;
+    loadExam().then((cleanup) => { cleanupExamChannel = cleanup; });
 
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
+      cleanupExamChannel?.();
     };
   }, [accessCode, navigate]);
 

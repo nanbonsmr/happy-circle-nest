@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FileText, BarChart3, Settings,
-  Users, Activity, Loader2,
-  Play, Pencil, Trash2, Mail, LogOut, Plus, Eye,
-  Search, Download, ChevronUp, ChevronDown, Copy, Radio,
+  Users, Activity, Loader2, Play, Pencil, Trash2, Mail,
+  LogOut, Plus, Search, Download, ChevronUp, ChevronDown,
+  Copy, Radio, Square, RefreshCw, ShieldAlert, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,16 +23,18 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Exam = Tables<"exams">;
 type ActiveTab = "dashboard" | "exams" | "reports" | "settings" | "monitor";
+
 interface SessionCounts { total: number; waiting: number; in_progress: number; submitted: number; }
 interface StudentReport {
   sessionId: string; studentName: string; studentEmail: string;
-  examId: string; examTitle: string; examSubject: string; score: number | null;
-  totalMarks: number | null; status: string; submittedAt: string | null;
-  correct: number; incorrect: number; totalQuestions: number; unanswered: number;
-  percentage: number | null; tabSwitches: number; fullscreenExits: number;
-  suspiciousScore: "Low" | "Medium" | "High";
-  ejectedByViolation: boolean;
+  examId: string; examTitle: string; examSubject: string;
+  score: number | null; totalMarks: number | null; status: string;
+  submittedAt: string | null; correct: number; incorrect: number;
+  totalQuestions: number; unanswered: number; percentage: number | null;
+  tabSwitches: number; fullscreenExits: number;
+  suspiciousScore: "Low" | "Medium" | "High"; ejectedByViolation: boolean;
 }
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-500",
   published: "bg-blue-100 text-blue-600",
@@ -54,31 +56,39 @@ const TeacherDashboard = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [reports, setReports] = useState<StudentReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
+  // Edit exam
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editSubject, setEditSubject] = useState("");
   const [editDuration, setEditDuration] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  // Delete exam
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // Actions
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cloningId, setCloningId] = useState<string | null>(null);
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
+  // Monitor
   const [monitorExamId, setMonitorExamId] = useState<string>("");
   const [monitorSessions, setMonitorSessions] = useState<any[]>([]);
+  // Exams search
+  const [examSearch, setExamSearch] = useState("");
 
   const loadCounts = useCallback(async (list: Exam[]) => {
     if (!list.length) return;
+    const ids = list.map((e) => e.id);
+    const { data } = await supabase.from("exam_sessions").select("exam_id, status").in("exam_id", ids);
     const counts: Record<string, SessionCounts> = {};
-    for (const exam of list) {
-      const { data } = await supabase.from("exam_sessions").select("status").eq("exam_id", exam.id);
-      const s = (data || []) as { status: string }[];
-      counts[exam.id] = {
-        total: s.length,
-        waiting: s.filter((x) => x.status === "waiting").length,
-        in_progress: s.filter((x) => x.status === "in_progress").length,
-        submitted: s.filter((x) => x.status === "submitted").length,
-      };
-    }
+    list.forEach((e) => { counts[e.id] = { total: 0, waiting: 0, in_progress: 0, submitted: 0 }; });
+    (data || []).forEach((s) => {
+      if (!counts[s.exam_id]) return;
+      counts[s.exam_id].total++;
+      if (s.status === "waiting") counts[s.exam_id].waiting++;
+      else if (s.status === "in_progress") counts[s.exam_id].in_progress++;
+      else if (s.status === "submitted") counts[s.exam_id].submitted++;
+    });
     setSessionCounts(counts);
   }, []);
 
@@ -101,6 +111,7 @@ const TeacherDashboard = () => {
     init();
   }, [navigate, loadCounts]);
 
+  // Real-time session counts
   useEffect(() => {
     if (!exams.length) return;
     const ch = supabase.channel("t-sessions")
@@ -109,54 +120,51 @@ const TeacherDashboard = () => {
     return () => { supabase.removeChannel(ch); };
   }, [exams, loadCounts]);
 
-  // Real-time exam status updates (e.g. another teacher starts an exam)
+  // Real-time exam status
   useEffect(() => {
     if (!userId) return;
     const ch = supabase.channel("t-exams-rt")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams", filter: `teacher_id=eq.${userId}` },
-        (payload) => {
-          setExams((prev) => prev.map((e) => e.id === payload.new.id ? { ...e, ...(payload.new as Exam) } : e));
-        })
+        (payload) => setExams((prev) => prev.map((e) => e.id === payload.new.id ? { ...e, ...(payload.new as Exam) } : e)))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [userId]);
 
-  // Auto-close exams when time expires
   useExamAutoStatus(exams, (examId, newStatus) => {
     setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
   });
 
-  // Real-time live monitor
+  // Live monitor
   useEffect(() => {
     if (activeTab !== "monitor" || !monitorExamId) return;
-    const loadSessions = async () => {
+    const load = async () => {
       const { data } = await supabase.from("exam_sessions")
-        .select("id, student_name, student_email, status, submitted_at, score, total_marks")
+        .select("id, student_name, student_email, status, submitted_at, score, total_marks, ejected_by_violation")
         .eq("exam_id", monitorExamId).order("created_at");
       setMonitorSessions(data || []);
     };
-    loadSessions();
+    load();
     const ch = supabase.channel("monitor-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions", filter: `exam_id=eq.${monitorExamId}` },
-        () => loadSessions())
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions", filter: `exam_id=eq.${monitorExamId}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [activeTab, monitorExamId]);
 
+  // Load reports once when tab opens
   useEffect(() => {
-    if (activeTab === "reports" && exams.length > 0 && reports.length === 0) loadReports();
-  }, [activeTab, exams]);
+    if (activeTab === "reports" && !reportsLoaded && exams.length > 0) loadReports();
+  }, [activeTab, exams, reportsLoaded]);
 
   const loadReports = async () => {
     setReportsLoading(true);
     try {
       const examIds = exams.map((e) => e.id);
-      const { data: sessions } = await supabase.from("exam_sessions").select("id, student_name, student_email, exam_id, score, total_marks, status, submitted_at, ejected_by_violation").in("exam_id", examIds);
-      if (!sessions?.length) { setReports([]); setReportsLoading(false); return; }
-      const { data: questions } = await supabase.from("questions").select("*").in("exam_id", examIds);
+      const { data: sessions } = await supabase.from("exam_sessions").select("*").in("exam_id", examIds);
+      if (!sessions?.length) { setReports([]); setReportsLoading(false); setReportsLoaded(true); return; }
+      const { data: questions } = await supabase.from("questions").select("exam_id").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);
-      const { data: answers } = await supabase.from("student_answers").select("*").in("session_id", sessionIds);
-      const { data: cheatLogs } = await supabase.from("cheat_logs" as any).select("session_id, event_type").in("session_id", sessionIds);
+      const { data: answers } = await supabase.from("student_answers").select("session_id, is_correct, selected_answer").in("session_id", sessionIds);
+      const { data: cheatLogs } = await supabase.from("cheat_logs").select("session_id, event_type").in("session_id", sessionIds);
       const examMap = Object.fromEntries(exams.map((e) => [e.id, e]));
       const qPerExam: Record<string, number> = {};
       (questions || []).forEach((q) => { qPerExam[q.exam_id] = (qPerExam[q.exam_id] || 0) + 1; });
@@ -167,22 +175,23 @@ const TeacherDashboard = () => {
         const incorrect = sa.filter((a) => a.is_correct === false).length;
         const answered = sa.filter((a) => a.selected_answer).length;
         const exam = examMap[s.exam_id];
-        const pct = totalQ > 0 ? Math.round((correct / totalQ) * 100) : null;
-        const logs = ((cheatLogs as any[]) || []).filter((l) => l.session_id === s.id);
+        const pct = s.total_marks && s.total_marks > 0 ? Math.round(((s.score ?? 0) / s.total_marks) * 100) : (totalQ > 0 ? Math.round((correct / totalQ) * 100) : null);
+        const logs = (cheatLogs || []).filter((l) => l.session_id === s.id);
         const tabSwitches = logs.filter((l) => l.event_type === "tab_switch").length;
         const fullscreenExits = logs.filter((l) => l.event_type === "fullscreen_exit").length;
         const suspiciousScore: "Low" | "Medium" | "High" = logs.length >= 8 ? "High" : logs.length >= 3 ? "Medium" : "Low";
         return {
           sessionId: s.id, studentName: s.student_name, studentEmail: s.student_email,
           examId: s.exam_id, examTitle: exam?.title || "Unknown", examSubject: exam?.subject || "",
-          score: s.score, totalMarks: s.total_marks, status: s.status,
-          submittedAt: s.submitted_at, correct, incorrect,
-          unanswered: totalQ - answered, totalQuestions: totalQ,
-          percentage: pct, tabSwitches, fullscreenExits, suspiciousScore,
-          ejectedByViolation: (s as any).ejected_by_violation === true,
+          score: s.score, totalMarks: s.total_marks, status: s.status, submittedAt: s.submitted_at,
+          correct, incorrect, unanswered: totalQ - answered, totalQuestions: totalQ,
+          percentage: s.status === "submitted" ? pct : null,
+          tabSwitches, fullscreenExits, suspiciousScore,
+          ejectedByViolation: s.ejected_by_violation === true,
         };
       });
       setReports(reps);
+      setReportsLoaded(true);
     } catch (err: any) {
       toast({ title: "Error loading reports", description: err.message, variant: "destructive" });
     }
@@ -195,21 +204,33 @@ const TeacherDashboard = () => {
     const { error } = await supabase.from("exams").update({ status: "active", started_at: new Date().toISOString() }).eq("id", examId);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "active", started_at: new Date().toISOString() } : e));
-    toast({ title: "Exam started!" });
+    toast({ title: "Exam started!", description: "Students can now begin." });
+  };
+
+  const handleStopExam = async (examId: string) => {
+    setStoppingId(examId);
+    const { error } = await supabase.from("exams").update({ status: "completed" }).eq("id", examId);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
+    else {
+      setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: "completed" } : e));
+      toast({ title: "Exam stopped." });
+    }
+    setStoppingId(null);
   };
 
   const openEditExam = (exam: Exam) => {
     setEditingExam(exam); setEditTitle(exam.title);
-    setEditSubject(exam.subject); setEditDuration(String(exam.duration_minutes));
+    setEditSubject(exam.subject || ""); setEditDuration(String(exam.duration_minutes));
   };
 
   const handleEditExam = async () => {
-    if (!editingExam) return;
+    if (!editingExam || !editTitle.trim()) return;
     setEditSaving(true);
-    const { error } = await supabase.from("exams").update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 }).eq("id", editingExam.id);
+    const dur = parseInt(editDuration) || 30;
+    const { error } = await supabase.from("exams").update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur }).eq("id", editingExam.id);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
     else {
-      setExams((prev) => prev.map((e) => e.id === editingExam.id ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: parseInt(editDuration) || 30 } : e));
+      setExams((prev) => prev.map((e) => e.id === editingExam.id ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur } : e));
       toast({ title: "Exam updated!" }); setEditingExam(null);
     }
     setEditSaving(false);
@@ -223,13 +244,15 @@ const TeacherDashboard = () => {
       if (sessions?.length) {
         const ids = sessions.map((s) => s.id);
         await supabase.from("student_answers").delete().in("session_id", ids);
+        await supabase.from("cheat_logs").delete().in("session_id", ids);
         await supabase.from("exam_sessions").delete().eq("exam_id", deletingExamId);
       }
       await supabase.from("questions").delete().eq("exam_id", deletingExamId);
       const { error } = await supabase.from("exams").delete().eq("id", deletingExamId);
       if (error) throw error;
       setExams((prev) => prev.filter((e) => e.id !== deletingExamId));
-      toast({ title: "Exam deleted!" });
+      setReportsLoaded(false);
+      toast({ title: "Exam deleted." });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
     setDeleteLoading(false); setDeletingExamId(null);
   };
@@ -243,8 +266,9 @@ const TeacherDashboard = () => {
         body: { examId, senderEmail: profileEmail || session.user.email, senderName: userName },
       });
       if (error) throw error;
-      toast({ title: (data as any)?.sent > 0 ? "Results sent!" : "No results to send" });
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+      const sent = (data as any)?.sent ?? 0;
+      toast({ title: sent > 0 ? `Results sent to ${sent} student${sent !== 1 ? "s" : ""}!` : "No submitted results to send." });
+    } catch (err: any) { toast({ title: "Send failed", description: err.message, variant: "destructive" }); }
     setSendingId(null);
   };
 
@@ -255,14 +279,9 @@ const TeacherDashboard = () => {
       if (!user) throw new Error("Not authenticated");
       const newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
       const { data: newExam, error: examErr } = await supabase.from("exams").insert({
-        teacher_id: user.id,
-        title: `${exam.title} (Copy)`,
-        subject: exam.subject,
-        duration_minutes: exam.duration_minutes,
-        access_code: newCode,
-        status: "published",
-        max_participants: exam.max_participants,
-        security_level: (exam as any).security_level || "low",
+        teacher_id: user.id, title: `${exam.title} (Copy)`, subject: exam.subject,
+        duration_minutes: exam.duration_minutes, access_code: newCode, status: "published",
+        max_participants: exam.max_participants, security_level: exam.security_level || "low",
       } as any).select().single();
       if (examErr) throw examErr;
       const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", exam.id).order("question_order");
@@ -270,35 +289,43 @@ const TeacherDashboard = () => {
         const cloned = qs.map((q: any) => ({ ...q, id: undefined, exam_id: newExam.id, created_at: undefined }));
         await supabase.from("questions").insert(cloned);
       }
-      // Navigate to edit page so teacher can review and modify before publishing
       navigate(`/teacher/edit/${newExam.id}`);
       toast({ title: "Exam cloned!", description: "Review and edit before publishing." });
-    } catch (err: any) {
-      toast({ title: "Clone failed", description: err.message, variant: "destructive" });
-    }
+    } catch (err: any) { toast({ title: "Clone failed", description: err.message, variant: "destructive" }); }
     setCloningId(null);
   };
 
+  const handleCopyLink = (code: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/exam/${code}`);
+    toast({ title: "Link copied!" });
+  };
+
   const handleSaveProfile = async () => {
+    if (!profileName.trim()) return;
     setSavingProfile(true);
-    const { error } = await supabase.from("profiles").update({ full_name: profileName }).eq("id", userId);
+    const { error } = await supabase.from("profiles").update({ full_name: profileName.trim() }).eq("id", userId);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
-    else { setUserName(profileName); toast({ title: "Profile updated!" }); }
+    else { setUserName(profileName.trim()); toast({ title: "Profile updated!" }); }
     setSavingProfile(false);
   };
 
+  // Derived stats
   const counts = Object.values(sessionCounts) as SessionCounts[];
   const totalStudents = counts.reduce((a, b) => a + b.total, 0);
   const liveStudents = counts.reduce((a, b) => a + b.waiting + b.in_progress, 0);
   const activeExams = exams.filter((e) => e.status === "active").length;
-  const submitted = reports.filter((r) => r.percentage !== null);
-  const avgScore = submitted.length > 0 ? Math.round(submitted.reduce((a, r) => a + (r.percentage || 0), 0) / submitted.length) : 0;
+  const submittedReports = reports.filter((r) => r.percentage !== null);
+  const avgScore = submittedReports.length > 0
+    ? Math.round(submittedReports.reduce((a, r) => a + (r.percentage || 0), 0) / submittedReports.length) : 0;
 
-  // Report filters
-  const {
-    examFilter, setExamFilter, statusFilter, setStatusFilter, search, setSearch,
-    sortField, sortAsc, toggleSort, filtered: filteredReports, exportXLSX,
-  } = useReportFilters(reports);
+  const filteredExams = useMemo(() => {
+    if (!examSearch.trim()) return exams;
+    const q = examSearch.toLowerCase();
+    return exams.filter((e) => e.title.toLowerCase().includes(q) || e.subject?.toLowerCase().includes(q) || e.access_code.toLowerCase().includes(q));
+  }, [exams, examSearch]);
+
+  const { examFilter, setExamFilter, statusFilter, setStatusFilter, search, setSearch,
+    sortField, sortAsc, toggleSort, filtered: filteredReports, exportXLSX } = useReportFilters(reports);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", tab: "dashboard" },
@@ -323,38 +350,57 @@ const TeacherDashboard = () => {
       userName={userName}
       userEmail={profileEmail}
       role="teacher"
-      headerTitle={activeTab === "dashboard" ? "Dashboard" : activeTab === "exams" ? "My Exams" : activeTab === "monitor" ? "Live Monitor" : activeTab === "reports" ? "Reports" : "Settings"}
+      headerTitle={
+        activeTab === "dashboard" ? "Dashboard"
+        : activeTab === "exams" ? "My Exams"
+        : activeTab === "monitor" ? "Live Monitor"
+        : activeTab === "reports" ? "Reports"
+        : "Settings"
+      }
       liveCount={liveStudents}
       headerAction={
         (activeTab === "dashboard" || activeTab === "exams") ? (
           <Button asChild size="sm" className="gap-1.5 bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0 text-xs">
             <Link to="/teacher/create"><Plus className="h-3.5 w-3.5" /> Create Exam</Link>
           </Button>
+        ) : activeTab === "reports" ? (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => { setReportsLoaded(false); loadReports(); }}
+              disabled={reportsLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-semibold hover:bg-slate-200 disabled:opacity-50 transition-colors">
+              <RefreshCw className={`h-3.5 w-3.5 ${reportsLoading ? "animate-spin" : ""}`} /> Refresh
+            </button>
+            <button type="button" onClick={() => exportXLSX("reports.xlsx")} disabled={!filteredReports.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+          </div>
         ) : undefined
       }
     >
 
+      {/* Dashboard Tab */}
       {activeTab === "dashboard" && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard label="Total Exams" value={String(exams.length)} icon={FileText} accent="border-l-blue-400" iconBg="bg-blue-50" iconColor="text-blue-500" index={0} />
             <StatCard label="Active Exams" value={String(activeExams)} icon={Activity} accent="border-l-green-400" iconBg="bg-green-50" iconColor="text-green-500" sub={liveStudents > 0 ? `${liveStudents} live` : undefined} index={1} />
             <StatCard label="Total Students" value={String(totalStudents)} icon={Users} accent="border-l-purple-400" iconBg="bg-purple-50" iconColor="text-purple-500" index={2} />
-            <StatCard label="Avg Score" value={reports.length > 0 ? `${avgScore}%` : "—"} icon={BarChart3} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
+            <StatCard label="Avg Score" value={submittedReports.length > 0 ? `${avgScore}%` : "—"} icon={BarChart3} accent="border-l-amber-400" iconBg="bg-amber-50" iconColor="text-amber-500" index={3} />
           </div>
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h2 className="font-bold text-[#1e3a5f]">Exams Scheduled</h2>
+              <h2 className="font-bold text-[#1e3a5f]">Recent Exams</h2>
               <button type="button" onClick={() => setActiveTab("exams")} className="text-xs text-[#1a8fe3] hover:underline font-medium">View All</button>
             </div>
             {exams.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-sm">No exams yet.</div>
+              <div className="py-12 text-center text-slate-400 text-sm">No exams yet. Create your first exam to get started.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                      <th className="text-left px-5 py-3 font-semibold">Exam Name</th>
+                      <th className="text-left px-5 py-3 font-semibold">Exam</th>
                       <th className="text-left px-4 py-3 font-semibold">Subject</th>
                       <th className="text-left px-4 py-3 font-semibold">Duration</th>
                       <th className="text-left px-4 py-3 font-semibold">Students</th>
@@ -382,7 +428,8 @@ const TeacherDashboard = () => {
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1">
-                              {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>}
+                              {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start exam"><Play className="h-3.5 w-3.5" /></button>}
+                              {exam.status === "active" && <button type="button" onClick={() => handleStopExam(exam.id)} disabled={stoppingId === exam.id} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="Stop exam">{stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}</button>}
                               <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit exam"><Pencil className="h-3.5 w-3.5" /></button>
                               <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
                                 {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -401,60 +448,89 @@ const TeacherDashboard = () => {
         </div>
       )}
 
+      {/* Exams Tab */}
       {activeTab === "exams" && (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-[#1e3a5f]">All Exams ({exams.length})</h2>
-          </div>
-          {exams.length === 0 ? <div className="py-12 text-center text-slate-400 text-sm">No exams yet.</div> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-5 py-3 font-semibold">Exam Name</th>
-                    <th className="text-left px-4 py-3 font-semibold">Subject</th>
-                    <th className="text-left px-4 py-3 font-semibold">Duration</th>
-                    <th className="text-left px-4 py-3 font-semibold">Code</th>
-                    <th className="text-left px-4 py-3 font-semibold">Students</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exams.map((exam) => {
-                    const c = sessionCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
-                    return (
-                      <tr key={exam.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
-                        <td className="px-5 py-3.5 font-semibold text-[#1e3a5f]">{exam.title}</td>
-                        <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
-                        <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
-                        <td className="px-4 py-3.5 font-mono text-xs text-slate-500">{exam.access_code}</td>
-                        <td className="px-4 py-3.5 font-medium text-[#1e3a5f]">{c.total}</td>
-                        <td className="px-4 py-3.5"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[exam.status] || STATUS_COLORS.draft}`}>{exam.status}</span></td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1">
-                            {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start"><Play className="h-3.5 w-3.5" /></button>}
-                            <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit exam"><Pencil className="h-3.5 w-3.5" /></button>
-                            <button type="button" onClick={() => { navigator.clipboard.writeText(`https://nejoexamprep.vercel.app/exam/${exam.access_code}`); toast({ title: "Link copied!" }); }} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy link"><Eye className="h-3.5 w-3.5" /></button>
-                            <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
-                              {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
-                            </button>
-                            <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
-                              {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                            </button>
-                            <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <div className="space-y-3">
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input type="text" placeholder="Search exams by title, subject or code…" value={examSearch}
+                onChange={(e) => setExamSearch(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" />
             </div>
-          )}
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-[#1e3a5f]">All Exams ({filteredExams.length})</h2>
+            </div>
+            {filteredExams.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">{exams.length === 0 ? "No exams yet." : "No exams match your search."}</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                      <th className="text-left px-5 py-3 font-semibold">Exam</th>
+                      <th className="text-left px-4 py-3 font-semibold">Subject</th>
+                      <th className="text-left px-4 py-3 font-semibold">Duration</th>
+                      <th className="text-left px-4 py-3 font-semibold">Code</th>
+                      <th className="text-left px-4 py-3 font-semibold">Students</th>
+                      <th className="text-left px-4 py-3 font-semibold">Status</th>
+                      <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredExams.map((exam) => {
+                      const c = sessionCounts[exam.id] || { total: 0, waiting: 0, in_progress: 0, submitted: 0 };
+                      return (
+                        <tr key={exam.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-[#1e3a5f]">{exam.title}</p>
+                            <p className="text-xs text-slate-400">{new Date(exam.created_at).toLocaleDateString()}</p>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
+                          <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
+                          <td className="px-4 py-3.5">
+                            <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{exam.access_code}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs space-y-0.5">
+                              <p className="font-medium text-[#1e3a5f]">{c.total} total</p>
+                              {c.in_progress > 0 && <p className="text-green-600">{c.in_progress} active</p>}
+                              {c.submitted > 0 && <p className="text-blue-600">{c.submitted} done</p>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[exam.status] || STATUS_COLORS.draft}`}>{exam.status}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start exam"><Play className="h-3.5 w-3.5" /></button>}
+                              {exam.status === "active" && <button type="button" onClick={() => handleStopExam(exam.id)} disabled={stoppingId === exam.id} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="Stop exam">{stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}</button>}
+                              <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit questions"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Quick edit"><Settings className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleCopyLink(exam.access_code)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy exam link"><Eye className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
+                                {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Email results">
+                                {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                              </button>
+                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Monitor Tab */}
       {activeTab === "monitor" && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl shadow-sm p-4">
@@ -467,29 +543,28 @@ const TeacherDashboard = () => {
                   <option key={e.id} value={e.id}>{e.title} — {e.status}</option>
                 ))}
               </select>
-              <div className="flex items-center gap-1.5 text-xs text-green-600 font-semibold">
-                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                Live
+              <div className="flex items-center gap-1.5 text-xs text-green-600 font-semibold shrink-0">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" /> Live
               </div>
             </div>
           </div>
 
           {!monitorExamId ? (
-            <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
-              Select an active exam above to start monitoring.
+            <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
+              Select an active or published exam above to start monitoring.
             </div>
           ) : monitorSessions.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
-              No students have joined yet.
+            <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
+              No students have joined yet. Waiting…
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-bold text-[#1e3a5f]">Students ({monitorSessions.length})</h2>
                 <div className="flex items-center gap-4 text-xs text-slate-500">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> Waiting: {monitorSessions.filter((s) => s.status === "waiting").length}</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Active: {monitorSessions.filter((s) => s.status === "in_progress").length}</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> Submitted: {monitorSessions.filter((s) => s.status === "submitted").length}</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" /> Waiting: {monitorSessions.filter((s) => s.status === "waiting").length}</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Active: {monitorSessions.filter((s) => s.status === "in_progress").length}</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Submitted: {monitorSessions.filter((s) => s.status === "submitted").length}</span>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -510,6 +585,7 @@ const TeacherDashboard = () => {
                           <td className="px-5 py-3">
                             <p className="font-semibold text-[#1e3a5f]">{s.student_name}</p>
                             <p className="text-xs text-slate-400">{s.student_email}</p>
+                            {s.ejected_by_violation && <span className="text-xs font-bold text-red-600">⚠ Ejected</span>}
                           </td>
                           <td className="px-4 py-3">
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
@@ -519,7 +595,9 @@ const TeacherDashboard = () => {
                             }`}>{s.status === "in_progress" ? "Active" : s.status}</span>
                           </td>
                           <td className="px-4 py-3 font-medium text-[#1e3a5f]">
-                            {s.status === "submitted" && pct !== null ? `${pct}%` : "—"}
+                            {s.status === "submitted" && pct !== null ? (
+                              <span className={pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}>{pct}%</span>
+                            ) : "—"}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-500">
                             {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString() : "—"}
@@ -535,19 +613,11 @@ const TeacherDashboard = () => {
         </div>
       )}
 
+      {/* Reports Tab */}
       {activeTab === "reports" && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={loadReports} disabled={reportsLoading} className="text-xs text-[#1a8fe3] hover:underline font-medium">{reportsLoading ? "Loading..." : "Refresh"}</button>
-                <button type="button" onClick={() => exportXLSX("reports.xlsx")} disabled={!filteredReports.length}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
-                  <Download className="h-3.5 w-3.5" /> Export
-                </button>
-              </div>
-            </div>
+            <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
             <div className="flex flex-col sm:flex-row gap-2">
               <select value={examFilter} onChange={(e) => setExamFilter(e.target.value)}
                 title="Filter by exam" aria-label="Filter by exam"
@@ -565,7 +635,7 @@ const TeacherDashboard = () => {
               </select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input type="text" placeholder="Search student name or email..." value={search}
+                <input type="text" placeholder="Search student name or email…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" />
               </div>
@@ -573,9 +643,9 @@ const TeacherDashboard = () => {
           </div>
 
           {reportsLoading ? (
-            <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#1a8fe3]" /></div>
+            <div className="py-16 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#1a8fe3]" /></div>
           ) : filteredReports.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">
+            <div className="py-16 text-center text-slate-400 text-sm">
               {reports.length === 0 ? "No student sessions yet." : "No results match your filters."}
             </div>
           ) : (
@@ -601,15 +671,12 @@ const TeacherDashboard = () => {
                   {filteredReports.map((r, i) => {
                     const isSubmitted = r.status === "submitted";
                     const pct = r.percentage;
-                    const progressVal = pct !== null ? pct : 0;
                     return (
                       <tr key={r.sessionId} className={`border-t border-slate-50 hover:bg-slate-50/70 transition-colors ${i === 0 && isSubmitted ? "bg-amber-50/40" : i === 1 && isSubmitted ? "bg-slate-50/60" : i === 2 && isSubmitted ? "bg-orange-50/30" : ""}`}>
                         <td className="px-5 py-3.5">
                           {isSubmitted ? (
                             <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-200 text-amber-700" : i === 1 ? "bg-slate-200 text-slate-600" : i === 2 ? "bg-orange-200 text-orange-600" : "bg-slate-50 text-slate-400"}`}>{i + 1}</span>
-                          ) : (
-                            <span className="text-slate-300 text-xs">—</span>
-                          )}
+                          ) : <span className="text-slate-300 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3.5">
                           <p className="font-semibold text-[#1e3a5f]">{r.studentName}</p>
@@ -625,9 +692,7 @@ const TeacherDashboard = () => {
                               <span className={`text-base font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>{pct}%</span>
                               <p className="text-xs text-slate-400">{r.score ?? 0}/{r.totalMarks ?? 0} marks</p>
                             </>
-                          ) : (
-                            <span className="text-slate-400 text-sm">—</span>
-                          )}
+                          ) : <span className="text-slate-400 text-sm">—</span>}
                         </td>
                         <td className="px-4 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-2 text-xs">
@@ -635,12 +700,12 @@ const TeacherDashboard = () => {
                             <span className="text-red-500 font-semibold">✗{r.incorrect}</span>
                             <span className="text-slate-400">?{r.unanswered}</span>
                           </div>
-                          <p className="text-xs text-slate-400 mt-0.5">{r.correct + r.incorrect}/{r.totalQuestions} answered</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{r.correct + r.incorrect}/{r.totalQuestions}</p>
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="w-20 mx-auto">
-                            <Progress value={progressVal} className="h-1.5" />
-                            <p className="text-xs text-slate-400 text-center mt-0.5">{progressVal}%</p>
+                            <Progress value={pct ?? 0} className="h-1.5" />
+                            <p className="text-xs text-slate-400 text-center mt-0.5">{pct ?? 0}%</p>
                           </div>
                         </td>
                         <td className="px-4 py-3.5 text-center">
@@ -649,11 +714,7 @@ const TeacherDashboard = () => {
                         </td>
                         <td className="px-4 py-3.5">
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{r.status === "in_progress" ? "Active" : r.status}</span>
-                          {r.ejectedByViolation && (
-                            <span className="ml-1.5 text-xs font-bold px-2 py-0.5 rounded-full bg-red-600 text-white">
-                              ⚠ Cheater
-                            </span>
-                          )}
+                          {r.ejectedByViolation && <span className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-0.5 w-fit mt-0.5"><ShieldAlert className="h-2.5 w-2.5" /> Ejected</span>}
                         </td>
                       </tr>
                     );
@@ -665,29 +726,28 @@ const TeacherDashboard = () => {
         </div>
       )}
 
+      {/* Settings Tab */}
       {activeTab === "settings" && (
         <div className="space-y-4 max-w-lg">
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-            <h2 className="font-bold text-[#1e3a5f]">Profile Settings</h2>
+            <h2 className="font-bold text-[#1e3a5f]">Profile</h2>
             <div className="space-y-2">
               <Label htmlFor="pname">Full Name</Label>
-              <Input id="pname" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+              <Input id="pname" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Your name" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pemail">Email</Label>
-              <Input id="pemail" value={profileEmail} disabled className="bg-slate-50" />
-              <p className="text-xs text-slate-400">Email cannot be changed.</p>
+              <Input id="pemail" value={profileEmail} disabled className="bg-slate-50 text-slate-400" />
+              <p className="text-xs text-slate-400">Email cannot be changed here.</p>
             </div>
-            <Button onClick={handleSaveProfile} disabled={savingProfile} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
-              {savingProfile ? "Saving..." : "Save Changes"}
+            <Button onClick={handleSaveProfile} disabled={savingProfile || !profileName.trim()} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+              {savingProfile ? "Saving…" : "Save Changes"}
             </Button>
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
             <h2 className="font-bold text-[#1e3a5f]">Change Password</h2>
             <ChangePasswordForm />
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
             <h2 className="font-bold text-[#1e3a5f]">Account</h2>
             <p className="text-sm text-slate-500">Contact your admin for account changes.</p>
@@ -698,20 +758,51 @@ const TeacherDashboard = () => {
         </div>
       )}
 
+      {/* Delete Exam Dialog */}
       <AlertDialog open={!!deletingExamId} onOpenChange={(open) => !open && setDeletingExamId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Exam</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the exam and all student data. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>Delete Exam?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the exam and all student data including answers and cheat logs. This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteExam} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleteLoading ? "Deleting..." : "Delete"}
+              {deleteLoading ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Quick Edit Exam Dialog */}
+      <Dialog open={!!editingExam} onOpenChange={(open) => !open && setEditingExam(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Quick Edit Exam</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title *</Label>
+              <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Exam title" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-subject">Subject</Label>
+              <Input id="edit-subject" value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="Subject" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-duration">Duration (minutes)</Label>
+              <Input id="edit-duration" type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} min="1" max="300" />
+            </div>
+            <p className="text-xs text-slate-400">To edit questions or access code, use the full editor.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingExam(null)}>Cancel</Button>
+            <Button onClick={handleEditExam} disabled={editSaving || !editTitle.trim()} className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0">
+              {editSaving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </DashboardLayout>
   );

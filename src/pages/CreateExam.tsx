@@ -140,7 +140,11 @@ const CreateExam = () => {
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
       // Only generate new code if it conflicts with a DIFFERENT exam
-      if (existing && existing.id !== examId) { code = generateUniqueCode(); setAccessCode(code); }
+      if (existing && existing.id !== examId) {
+        code = generateUniqueCode();
+        setAccessCode(code);
+        toast({ title: "Access code changed", description: `Your access code was updated to ${code} to avoid a conflict.` });
+      }
 
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
@@ -336,6 +340,33 @@ const CreateExam = () => {
                   <p className="font-medium text-foreground mb-1">📊 Scoring: Percentage-based</p>
                   <p>Each question carries equal weight. Final score = (correct answers / total questions) × 100%</p>
                 </div>
+
+                {/* Exam Status — only shown when editing */}
+                {isEditing && (
+                  <div className="space-y-2">
+                    <Label>Exam Status</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {(["draft", "published", "active", "completed"] as const).map((s) => {
+                        const selected = examStatus === s;
+                        const colorMap: Record<string, string> = {
+                          draft: selected ? "border-slate-400 bg-slate-100 text-slate-700 ring-2 ring-slate-400" : "border-border text-muted-foreground hover:border-slate-300",
+                          published: selected ? "border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-400" : "border-border text-muted-foreground hover:border-blue-300",
+                          active: selected ? "border-green-500 bg-green-50 text-green-700 ring-2 ring-green-400" : "border-border text-muted-foreground hover:border-green-300",
+                          completed: selected ? "border-slate-500 bg-slate-200 text-slate-600 ring-2 ring-slate-400" : "border-border text-muted-foreground hover:border-slate-300",
+                        };
+                        return (
+                          <button key={s} type="button" onClick={() => setExamStatus(s)}
+                            className={`rounded-xl border-2 px-3 py-2.5 text-sm font-semibold capitalize transition-all ${colorMap[s]}`}>
+                            {s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      <strong>draft</strong> = hidden · <strong>published</strong> = ready for students · <strong>active</strong> = exam is live · <strong>completed</strong> = closed
+                    </p>
+                  </div>
+                )}
 
                 {/* Security Level */}
                 <div className="space-y-2">
