@@ -294,7 +294,16 @@ const AdminDashboard = () => {
         const newId = `STU-${String(lastNum + 1).padStart(4, "0")}`;
 
         const { data: inserted, error } = await supabase.from("students")
-          .insert({ student_id: newId, full_name: studentName.trim(), email: studentEmail.trim(), grade: studentGrade.trim(), created_by: user?.id })
+          .insert({
+            student_id: newId,
+            full_name: studentName.trim(),
+            email: studentEmail.trim(),
+            grade: studentGrade.trim(),
+            gender: studentGender,
+            password: studentPassword || "pass1234",
+            must_change_password: true,
+            created_by: user?.id,
+          })
           .select()
           .single();
         if (error) throw error;
