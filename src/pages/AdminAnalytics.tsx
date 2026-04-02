@@ -168,7 +168,7 @@ const AdminAnalytics = () => {
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate("/admin")} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+          <button onClick={() => navigate("/admin")} title="Back to admin dashboard" className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
             <ArrowLeft className="h-5 w-5 text-slate-600" />
           </button>
           <div>
@@ -184,6 +184,8 @@ const AdminAnalytics = () => {
           <select
             value={examFilter}
             onChange={(e) => setExamFilter(e.target.value)}
+            title="Filter by exam"
+            aria-label="Filter by exam"
             className="h-10 px-4 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
           >
             <option value="all">All Exams</option>
@@ -293,7 +295,7 @@ const AdminAnalytics = () => {
               className={`bg-white rounded-2xl p-6 border ${group.border} shadow-sm`}
             >
               <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color }} />
+                <span className={`h-3 w-3 rounded-full shrink-0 ${group.label === "Male" ? "bg-blue-500" : "bg-pink-500"}`} />
                 {group.label} Performance ({group.data.total})
               </h3>
               <div className="space-y-4">
@@ -309,18 +311,14 @@ const AdminAnalytics = () => {
                     <span className="text-slate-600">Passed (&gt;50%)</span>
                     <span className="font-bold text-green-600">{group.data.above50}%</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="h-2 rounded-full bg-green-500 transition-all duration-500" style={{ width: `${group.data.above50}%` }} />
-                  </div>
+                  <Progress value={group.data.above50} className="h-2" />
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-600">Excellent (&gt;80%)</span>
                     <span className="font-bold text-purple-600">{group.data.above80}%</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div className="h-2 rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${group.data.above80}%` }} />
-                  </div>
+                  <Progress value={group.data.above80} className="h-2" />
                 </div>
               </div>
             </motion.div>
