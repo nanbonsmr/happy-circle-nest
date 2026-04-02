@@ -283,69 +283,6 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* Notifications */}
-            {notifications.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <h2 className="font-bold text-[#0f172a] flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    Exam Results
-                  </h2>
-                  <span className="text-xs text-slate-500">{notifications.filter(n => !n.is_read).length} new</span>
-                </div>
-                <div className="divide-y divide-slate-50">
-                  {notifications.slice(0, 3).map((notification) => (
-                    <div 
-                      key={notification.id} 
-                      className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer ${
-                        !notification.is_read ? 'bg-blue-50/50' : ''
-                      }`}
-                      onClick={() => {
-                        if (!notification.is_read) {
-                          markNotificationAsRead(notification.id);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-sm text-[#0f172a] mb-1">{notification.title}</h3>
-                          <p className="text-xs text-slate-600 mb-2">{notification.message}</p>
-                          {notification.score !== null && notification.total_marks !== null && (
-                            <div className="flex items-center gap-4 text-xs">
-                              <span className="text-slate-500">
-                                Score: <span className="font-semibold text-[#0f172a]">{notification.score}/{notification.total_marks}</span>
-                              </span>
-                              {notification.percentage !== null && (
-                                <span className={`font-semibold ${
-                                  notification.percentage >= 70 ? 'text-green-600' : 
-                                  notification.percentage >= 40 ? 'text-amber-600' : 'text-red-600'
-                                }`}>
-                                  {notification.percentage}%
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {new Date(notification.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {notifications.length > 3 && (
-                  <div className="px-5 py-3 bg-slate-50 text-center">
-                    <button 
-                      onClick={() => setTab("results")} 
-                      className="text-xs text-[#2563EB] hover:underline font-medium"
-                    >
-                      View All Results
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Recent results */}
             {publishedResults.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
