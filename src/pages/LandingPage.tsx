@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import logo from "@/assets/logo.png";
+import AnnouncementsSection from "@/components/AnnouncementsSection";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -604,6 +605,9 @@ const LandingPage = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Announcements Section */}
+      <AnnouncementsSection />
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 relative overflow-hidden">

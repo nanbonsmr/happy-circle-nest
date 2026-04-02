@@ -4,14 +4,18 @@ import {
   Users, FileText, BarChart3, Settings, LayoutDashboard,
   UserPlus, TrendingUp, Activity, Loader2, Trash2,
   ChevronDown, ChevronUp, Pencil, Download, Search,
-  RefreshCw, ShieldCheck, Eye, EyeOff,
+  RefreshCw, ShieldCheck, Eye, EyeOff, Megaphone,
+  Plus, Calendar, Image as ImageIcon, Badge as BadgeIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import ImageUpload from "@/components/ImageUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -24,7 +28,8 @@ import * as XLSX from "xlsx";
 type Exam = Tables<"exams">;
 interface TeacherRow { id: string; full_name: string; email: string; examCount: number; studentCount: number; }
 interface SessionRow { id: string; exam_id: string; student_name: string; student_email: string; score: number | null; total_marks: number | null; status: string; submitted_at: string | null; exam_title: string; exam_subject: string; }
-type Tab = "overview" | "teachers" | "students" | "exams" | "results" | "settings";
+interface Announcement { id: string; title: string; description: string; content?: string; image_url?: string; badge?: string; priority: number; is_published: boolean; created_at: string; updated_at: string; }
+type Tab = "overview" | "teachers" | "students" | "exams" | "results" | "announcements" | "settings";
 
 const statusColors: Record<string, string> = {
   draft: "bg-slate-100 text-slate-500",
@@ -73,6 +78,22 @@ const AdminDashboard = () => {
   // Exams search
   const [examSearch, setExamSearch] = useState("");
   const [dataLoading, setDataLoading] = useState(false);
+  
+  // Announcements
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementDescription, setAnnouncementDescription] = useState("");
+  const [announcementContent, setAnnouncementContent] = useState("");
+  const [announcementImageUrl, setAnnouncementImageUrl] = useState("");
+  const [announcementBadge, setAnnouncementBadge] = useState("");
+  const [announcementPriority, setAnnouncementPriority] = useState(1);
+  const [announcementPublished, setAnnouncementPublished] = useState(true);
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  const [deleteAnnouncementId, setDeleteAnnouncementId] = useState<string | null>(null);
+  const [announcementSearch, setAnnouncementSearch] = useState("");
+  const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
 
   const loadData = useCallback(async () => {
     setDataLoading(true);
@@ -101,6 +122,14 @@ const AdminDashboard = () => {
       setResults((sessions || []).map((s: any) => ({ ...s, exam_title: examMap.get(s.exam_id)?.title || "—", exam_subject: examMap.get(s.exam_id)?.subject || "—" })));
       const { data: studs } = await supabase.from("students").select("*").order("student_id");
       setStudents(studs || []);
+      
+      // Load announcements
+      const { data: announcementsData } = await supabase
+        .from("announcements")
+        .select("*")
+        .order("priority", { ascending: false })
+        .order("created_at", { ascending: false });
+      setAnnouncements(announcementsData || []);
     } catch (err: any) {
       toast({ title: "Error loading data", description: err.message, variant: "destructive" });
     }
@@ -394,6 +423,16 @@ const AdminDashboard = () => {
     return students.filter((s) => s.full_name.toLowerCase().includes(q) || s.student_id.toLowerCase().includes(q) || (s.email || "").toLowerCase().includes(q));
   }, [students, studentSearch]);
 
+  const filteredAnnouncements = useMemo(() => {
+    if (!announcementSearch.trim()) return announcements;
+    const q = announcementSearch.toLowerCase();
+    return announcements.filter(a => 
+      a.title.toLowerCase().includes(q) || 
+      a.description.toLowerCase().includes(q) ||
+      (a.badge || "").toLowerCase().includes(q)
+    );
+  }, [announcements, announcementSearch]);
+
   const filteredExams = useMemo(() => {
     if (!examSearch.trim()) return exams;
     const q = examSearch.toLowerCase();
@@ -432,6 +471,142 @@ const AdminDashboard = () => {
     toast({ title: "Exported!" });
   };
 
+  // Announcement management functions
+  const openAddAnnouncement = () => {
+    setEditingAnnouncement(null);
+    setAnnouncementTitle("");
+    setAnnouncementDescription("");
+    setAnnouncementContent("");
+    setAnnouncementImageUrl("");
+    setAnnouncementBadge("");
+    setAnnouncementPriority(1);
+    setAnnouncementPublished(true);
+    setImageUploadMode('upload');
+    setShowAnnouncementDialog(true);
+  };
+
+  const openEditAnnouncement = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement);
+    setAnnouncementTitle(announcement.title);
+    setAnnouncementDescription(announcement.description);
+    setAnnouncementContent(announcement.content || "");
+    setAnnouncementImageUrl(announcement.image_url || "");
+    setAnnouncementBadge(announcement.badge || "");
+    setAnnouncementPriority(announcement.priority);
+    setAnnouncementPublished(announcement.is_published);
+    setImageUploadMode(announcement.image_url ? 'upload' : 'upload');
+    setShowAnnouncementDialog(true);
+  };
+
+  const handleSaveAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementDescription.trim()) return;
+    setSavingAnnouncement(true);
+    
+    try {
+      const announcementData = {
+        title: announcementTitle.trim(),
+        description: announcementDescription.trim(),
+        content: announcementContent.trim() || null,
+        image_url: announcementImageUrl.trim() || null,
+        badge: announcementBadge.trim() || null,
+        priority: announcementPriority,
+        is_published: announcementPublished,
+      };
+
+      if (editingAnnouncement) {
+        // Update existing announcement
+        const { error } = await supabase
+          .from("announcements")
+          .update(announcementData)
+          .eq("id", editingAnnouncement.id);
+        
+        if (error) throw error;
+        
+        setAnnouncements(prev => prev.map(a => 
+          a.id === editingAnnouncement.id 
+            ? { ...a, ...announcementData, updated_at: new Date().toISOString() }
+            : a
+        ));
+        
+        toast({ title: "Announcement updated successfully!" });
+      } else {
+        // Create new announcement
+        const { data, error } = await supabase
+          .from("announcements")
+          .insert(announcementData)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        setAnnouncements(prev => [data, ...prev]);
+        toast({ title: "Announcement created successfully!" });
+      }
+      
+      setShowAnnouncementDialog(false);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
+    
+    setSavingAnnouncement(false);
+  };
+
+  const handleDeleteAnnouncement = async () => {
+    if (!deleteAnnouncementId) return;
+    
+    // Optimistic removal
+    const removed = announcements.find(a => a.id === deleteAnnouncementId);
+    setAnnouncements(prev => prev.filter(a => a.id !== deleteAnnouncementId));
+    setDeleteAnnouncementId(null);
+    
+    try {
+      // Delete the announcement from database
+      const { error } = await supabase
+        .from("announcements")
+        .delete()
+        .eq("id", deleteAnnouncementId);
+      
+      if (error) throw error;
+
+      // Clean up associated image from storage if it exists
+      if (removed?.image_url) {
+        try {
+          const url = new URL(removed.image_url);
+          // Check if it's a Supabase storage URL
+          if (url.hostname.includes('supabase')) {
+            const pathParts = url.pathname.split('/');
+            const fileName = pathParts[pathParts.length - 1];
+            
+            await supabase.storage
+              .from('announcements')
+              .remove([fileName]);
+          }
+        } catch (imageError) {
+          console.warn('Could not delete associated image:', imageError);
+          // Don't fail the whole operation if image deletion fails
+        }
+      }
+      
+      toast({ title: "Announcement deleted successfully!" });
+    } catch (error: any) {
+      // Rollback on failure
+      if (removed) {
+        setAnnouncements(prev => [...prev, removed].sort((a, b) => 
+          b.priority - a.priority || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ));
+      }
+      toast({ 
+        title: "Error deleting announcement", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
+  };
+
   // Derived — always in sync with exams state
   const activeExams = exams.filter((e) => e.status === "active").length;
 
@@ -441,6 +616,7 @@ const AdminDashboard = () => {
     { icon: UserPlus, label: "Students", tab: "students" },
     { icon: FileText, label: "All Exams", tab: "exams" },
     { icon: BarChart3, label: "Results", tab: "results" },
+    { icon: Megaphone, label: "Announcements", tab: "announcements" },
     { icon: Settings, label: "Settings", tab: "settings" },
   ];
 
@@ -462,7 +638,7 @@ const AdminDashboard = () => {
       headerTitle={
         tab === "overview" ? "Dashboard" : tab === "teachers" ? "Teachers"
         : tab === "students" ? "Students" : tab === "exams" ? "All Exams"
-        : tab === "results" ? "Results" : "Settings"
+        : tab === "results" ? "Results" : tab === "announcements" ? "Announcements" : "Settings"
       }
       headerAction={
         tab === "teachers" ? (
@@ -496,6 +672,11 @@ const AdminDashboard = () => {
               <Download className="h-3.5 w-3.5" /> Export
             </button>
           </div>
+        ) : tab === "announcements" ? (
+          <button type="button" onClick={openAddAnnouncement}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] text-white text-xs font-semibold hover:bg-[#1a7fd4] transition-colors">
+            <Plus className="h-3.5 w-3.5" /> Add Announcement
+          </button>
         ) : undefined
       }
     >
@@ -803,6 +984,122 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* Announcements */}
+      {tab === "announcements" && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+            <h2 className="font-bold text-[#1e3a5f]">Announcements ({filteredAnnouncements.length})</h2>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Search announcements..." 
+                value={announcementSearch}
+                onChange={(e) => setAnnouncementSearch(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]" 
+              />
+            </div>
+          </div>
+          {filteredAnnouncements.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              {announcements.length === 0 ? "No announcements yet. Create your first announcement." : "No announcements match your search."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-5 py-3 font-semibold">Title</th>
+                    <th className="text-left px-4 py-3 font-semibold">Badge</th>
+                    <th className="text-center px-4 py-3 font-semibold">Priority</th>
+                    <th className="text-center px-4 py-3 font-semibold">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold">Created</th>
+                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAnnouncements.map((announcement) => (
+                    <tr key={announcement.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-start gap-3">
+                          {announcement.image_url && (
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                              <img 
+                                src={announcement.image_url} 
+                                alt={announcement.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-[#1e3a5f]">{announcement.title}</p>
+                            <p className="text-xs text-slate-400 mt-1" style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}>{announcement.description}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {announcement.badge ? (
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                            announcement.badge.toLowerCase() === 'important' ? 'bg-red-100 text-red-600' :
+                            announcement.badge.toLowerCase() === 'new' ? 'bg-blue-100 text-blue-600' :
+                            announcement.badge.toLowerCase() === 'notice' ? 'bg-amber-100 text-amber-600' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {announcement.badge}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className="font-medium text-[#1e3a5f]">{announcement.priority}</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                          announcement.is_published 
+                            ? 'bg-green-100 text-green-600' 
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {announcement.is_published ? 'Published' : 'Draft'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-slate-500">
+                        {new Date(announcement.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1">
+                          <button 
+                            type="button" 
+                            onClick={() => openEditAnnouncement(announcement)} 
+                            className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" 
+                            title="Edit"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setDeleteAnnouncementId(announcement.id)} 
+                            className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" 
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Settings */}
       {tab === "settings" && (
         <div className="max-w-lg space-y-4">
@@ -969,6 +1266,190 @@ const AdminDashboard = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteTeacher} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Permanently</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add / Edit Announcement Dialog */}
+      <Dialog open={showAnnouncementDialog} onOpenChange={(o) => !o && setShowAnnouncementDialog(false)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingAnnouncement ? "Edit Announcement" : "Create Announcement"}</DialogTitle>
+            <DialogDescription>
+              {editingAnnouncement ? "Update the announcement details." : "Create a new announcement for the landing page."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input 
+                value={announcementTitle} 
+                onChange={(e) => setAnnouncementTitle(e.target.value)} 
+                placeholder="Announcement title" 
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Description *</Label>
+              <Textarea 
+                value={announcementDescription} 
+                onChange={(e) => setAnnouncementDescription(e.target.value)} 
+                placeholder="Brief description that appears on cards"
+                rows={3}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Full Content (optional)</Label>
+              <Textarea 
+                value={announcementContent} 
+                onChange={(e) => setAnnouncementContent(e.target.value)} 
+                placeholder="Detailed content for the announcement detail page"
+                rows={5}
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Image</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setImageUploadMode('upload')}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      imageUploadMode === 'upload'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageUploadMode('url')}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      imageUploadMode === 'url'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Image URL
+                  </button>
+                </div>
+              </div>
+              
+              {imageUploadMode === 'upload' ? (
+                <ImageUpload
+                  value={announcementImageUrl}
+                  onChange={setAnnouncementImageUrl}
+                  onRemove={() => setAnnouncementImageUrl("")}
+                  disabled={savingAnnouncement}
+                />
+              ) : (
+                <div className="space-y-2">
+                  <Input 
+                    value={announcementImageUrl} 
+                    onChange={(e) => setAnnouncementImageUrl(e.target.value)} 
+                    placeholder="https://example.com/image.jpg" 
+                  />
+                  <p className="text-xs text-slate-400">
+                    Provide a direct URL to an image. Recommended size: 800x400px
+                  </p>
+                  {announcementImageUrl && (
+                    <div className="mt-2">
+                      <img
+                        src={announcementImageUrl}
+                        alt="Preview"
+                        className="w-full h-32 object-cover rounded-lg border"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Badge (optional)</Label>
+                <Select value={announcementBadge} onValueChange={setAnnouncementBadge}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select badge" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Badge</SelectItem>
+                    <SelectItem value="Important">Important</SelectItem>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Notice">Notice</SelectItem>
+                    <SelectItem value="Update">Update</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select value={String(announcementPriority)} onValueChange={(v) => setAnnouncementPriority(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 (Lowest)</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3 (High)</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                    <SelectItem value="5">5 (Highest)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="published"
+                checked={announcementPublished}
+                onChange={(e) => setAnnouncementPublished(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              <Label htmlFor="published" className="text-sm font-medium">
+                Publish immediately
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAnnouncementDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveAnnouncement} 
+              disabled={savingAnnouncement || !announcementTitle.trim() || !announcementDescription.trim()} 
+              className="bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white border-0"
+            >
+              {savingAnnouncement ? "Saving…" : editingAnnouncement ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Announcement Confirm */}
+      <AlertDialog open={!!deleteAnnouncementId} onOpenChange={(o) => !o && setDeleteAnnouncementId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Announcement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this announcement. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAnnouncement} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -18,6 +18,8 @@ import CreateExam from "./pages/CreateExam";
 import StudentLogin from "./pages/StudentLogin";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentResultDetail from "./pages/StudentResultDetail";
+import Announcements from "./pages/Announcements";
+import AnnouncementDetail from "./pages/AnnouncementDetail";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,8 @@ const App = () => (
           <Route path="/teacher/edit/:examId" element={<CreateExam />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/announcements/:id" element={<AnnouncementDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
