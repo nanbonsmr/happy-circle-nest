@@ -123,21 +123,7 @@ const StudentDashboard = () => {
     navigate("/student");
   };
 
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      await supabase
-        .from("student_notifications")
-        .update({ is_read: true })
-        .eq("id", notificationId);
-      
-      // Update local state
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-      );
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    }
-  };
+  
 
   const handleChangePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 4) {
