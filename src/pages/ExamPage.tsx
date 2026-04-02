@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
+import SecureExamMode from "@/components/SecureExamMode";
 
 interface Question {
   id: string;
@@ -251,6 +252,17 @@ const ExamPage = () => {
     warningOpenRef.current = true;
     setActiveWarning({ event, total });
   }, [handleEject]);
+
+  const handleSecurityViolation = useCallback((violation: string) => {
+    console.log("Security violation detected:", violation);
+    // You can add additional logging or reporting here
+    toast({
+      title: "Security Alert",
+      description: violation,
+      variant: "destructive",
+      duration: 3000
+    });
+  }, [toast]);
 
   const { requestFullscreen } = useCheatPrevention({
     sessionId,
@@ -573,7 +585,7 @@ const ExamPage = () => {
   const isLastQuestion = currentQuestion === questions.length - 1;
 
   return (
-    <>
+    <SecureExamMode examMode={true} onSecurityViolation={handleSecurityViolation}>
       {/* ── CSS fullscreen overlay — covers entire viewport, no browser API ── */}
       <div className="fixed inset-0 z-[100] bg-gray-100 overflow-hidden select-none exam-fullscreen">
         {/* Warning overlay */}
@@ -832,7 +844,8 @@ const ExamPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+      </div>
+    </SecureExamMode>
   );
 };
 
