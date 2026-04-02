@@ -35,7 +35,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<ExamResult[]>([]);
   const [availableExams, setAvailableExams] = useState<AvailableExam[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  
   const [studentInfo, setStudentInfo] = useState<any>(null);
   const [mustChangePw, setMustChangePw] = useState(false);
 
