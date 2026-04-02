@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { GraduationCap, BookOpen, BarChart3, Settings, LogOut, Loader2, Clock, Award, User, KeyRound, Eye, EyeOff, AlertTriangle, Bell } from "lucide-react";
+import { GraduationCap, BookOpen, BarChart3, Settings, LogOut, Loader2, Clock, Award, User, KeyRound, Eye, EyeOff, AlertTriangle, Bell, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo.png";
@@ -44,6 +44,7 @@ const StudentDashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const studentDbId = sessionStorage.getItem("student_db_id");
   const studentName = sessionStorage.getItem("student_name") || "Student";
@@ -121,6 +122,13 @@ const StudentDashboard = () => {
   const handleLogout = () => {
     sessionStorage.clear();
     navigate("/student");
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
   };
 
   
@@ -271,7 +279,16 @@ const StudentDashboard = () => {
             </button>
           ))}
         </nav>
-        <div className="px-3 pb-4">
+        <div className="px-3 pb-4 space-y-1">
+          <button 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50"
+            title="Refresh page"
+          >
+            <RotateCcw className={`h-4 w-4 transition-transform ${refreshing ? 'animate-spin' : 'hover:rotate-180'}`} />
+            Refresh
+          </button>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors">
             <LogOut className="h-4 w-4" /> Sign Out
@@ -285,7 +302,18 @@ const StudentDashboard = () => {
           <img src={logo} alt="" className="h-7 w-7 rounded-full" />
           <span className="font-bold text-sm">NejoExamPrep</span>
         </div>
-        <button onClick={handleLogout} className="text-red-400 text-xs">Logout</button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50" 
+            aria-label="Refresh page"
+            title="Refresh page"
+          >
+            <RotateCcw className={`h-4 w-4 text-white transition-transform ${refreshing ? 'animate-spin' : 'hover:rotate-180'}`} />
+          </button>
+          <button onClick={handleLogout} className="text-red-400 text-xs">Logout</button>
+        </div>
       </div>
 
       {/* Main */}

@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Bell, Menu, X } from "lucide-react";
+import { LogOut, Bell, Menu, X, RotateCcw } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 interface NavItem {
@@ -29,6 +29,15 @@ export const DashboardLayout = ({
 }: Props) => {
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    // Add a small delay to show the animation
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a8fe3] via-[#1a7fd4] to-[#1565c0] p-3 sm:p-4 md:p-6">
@@ -103,6 +112,16 @@ export const DashboardLayout = ({
                 </div>
               )}
               {headerAction}
+              <button 
+                type="button" 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50" 
+                aria-label="Refresh page"
+                title="Refresh page"
+              >
+                <RotateCcw className={`h-4 w-4 text-slate-500 transition-transform ${refreshing ? 'animate-spin' : 'hover:rotate-180'}`} />
+              </button>
               <button type="button" className="relative p-2 rounded-xl hover:bg-slate-100 transition-colors" aria-label="Notifications">
                 <Bell className="h-4 w-4 text-slate-500" />
                 <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, TrendingUp, Award, BarChart3, Loader2, Search,
-  ArrowLeft, UserCheck, Target, Percent,
+  ArrowLeft, UserCheck, Target, Percent, RotateCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
@@ -40,10 +40,19 @@ const COLORS = {
 const AdminAnalytics = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [results, setResults] = useState<StudentResult[]>([]);
   const [exams, setExams] = useState<{ id: string; title: string }[]>([]);
   const [examFilter, setExamFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    // Add a small delay to show the animation
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -167,14 +176,26 @@ const AdminAnalytics = () => {
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
-          <button onClick={() => navigate("/admin")} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
-            <ArrowLeft className="h-5 w-5 text-slate-600" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Analytics Dashboard</h1>
-            <p className="text-sm text-slate-500">Performance insights & student analytics</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/admin")} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">Analytics Dashboard</h1>
+              <p className="text-sm text-slate-500">Performance insights & student analytics</p>
+            </div>
           </div>
+          <button 
+            type="button" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50" 
+            aria-label="Refresh page"
+            title="Refresh page"
+          >
+            <RotateCcw className={`h-5 w-5 text-slate-500 transition-transform ${refreshing ? 'animate-spin' : 'hover:rotate-180'}`} />
+          </button>
         </div>
       </div>
 
