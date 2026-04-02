@@ -844,7 +844,6 @@ const ExamPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </div>
     </SecureExamMode>
   );
 };
