@@ -88,7 +88,26 @@ const ExamReady = () => {
               // Exam details were updated
               setExamTitle(newExam.title);
               setDuration(newExam.duration_minutes);
+              
+              // Re-fetch question count in case questions were added/removed
+              const { data: questionsData } = await supabase
+                .from("questions")
+                .select("id")
+                .eq("exam_id", exam.id);
+              setQuestionCount(questionsData?.length || 0);
             }
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "questions", filter: `exam_id=eq.${exam.id}` },
+          async () => {
+            // Questions were added/removed/updated, refresh count
+            const { data: questionsData } = await supabase
+              .from("questions")
+              .select("id")
+              .eq("exam_id", exam.id);
+            setQuestionCount(questionsData?.length || 0);
           }
         )
         .subscribe();

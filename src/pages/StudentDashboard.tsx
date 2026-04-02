@@ -119,6 +119,49 @@ const StudentDashboard = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Real-time subscription for exam updates (results_published changes)
+  useEffect(() => {
+    if (!studentDbId) return;
+
+    const channel = supabase
+      .channel('student-exam-updates')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'exams',
+          filter: 'results_published=eq.true'
+        },
+        async (payload) => {
+          // When an exam's results are published, refresh the results
+          const updatedExam = payload.new as any;
+          
+          // Check if this student has a session for this exam
+          const { data: studentSession } = await supabase
+            .from("exam_sessions")
+            .select("id")
+            .eq("student_registry_id", studentDbId)
+            .eq("exam_id", updatedExam.id)
+            .maybeSingle();
+
+          if (studentSession) {
+            // Reload data to show the newly published results
+            loadData();
+            toast({
+              title: "New Results Available!",
+              description: `Results for "${updatedExam.title}" have been published.`,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [studentDbId, loadData, toast]);
+
   const handleLogout = () => {
     sessionStorage.clear();
     navigate("/student");
