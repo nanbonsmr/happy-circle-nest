@@ -134,87 +134,26 @@ const StudentDashboard = () => {
       toast({ title: "Passwords do not match", variant: "destructive" });
       return;
     }
-    
     if (!studentDbId) {
-      toast({ title: "Error", description: "Student session not found. Please log in again.", variant: "destructive" });
+      toast({ title: "Error", description: "Student session not found.", variant: "destructive" });
       return;
     }
-    
     setSavingPw(true);
     try {
-      console.log("Student updating password for ID:", studentDbId);
-      
-      // Use the database function (most reliable approach)
-      const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
-        student_db_id: studentDbId,
-        new_password: newPassword.trim()
-      });
-      
-      console.log("Password function result:", functionResult, "Error:", functionError);
-      
-      // Check for function call errors
-      if (functionError) {
-        throw new Error(`Database function error: ${functionError.message}`);
-      }
-      
-      // Check the function result
-      if (!functionResult) {
-        throw new Error("No response from password update function. Please try again.");
-      }
-      
-      // Handle function response
-      if (functionResult.success) {
-        console.log("Password update succeeded:", functionResult.message);
-        
-        // Success - update session and UI
-        sessionStorage.setItem("student_must_change_pw", "false");
-        sessionStorage.setItem("student_password", newPassword.trim());
-        
-        setMustChangePw(false);
-        setNewPassword("");
-        setConfirmPassword("");
-        
-        toast({ 
-          title: "Password changed successfully!", 
-          description: "Your new password has been saved. You can now use it to log in."
-        });
-        
-      } else {
-        // Function returned an error
-        const errorMsg = functionResult.error || "Password update failed for unknown reason";
-        console.error("Function returned error:", errorMsg);
-        
-        // Provide specific error messages based on the error
-        if (errorMsg.includes("not found")) {
-          throw new Error("Student record not found. Please contact support.");
-        } else if (errorMsg.includes("4 characters")) {
-          throw new Error("Password must be at least 4 characters long.");
-        } else if (errorMsg.includes("permission") || errorMsg.includes("access")) {
-          throw new Error("Database permission issue. The administrator needs to run the SQL fix provided.");
-        } else {
-          throw new Error(errorMsg);
-        }
-      }
-      
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({ password: newPassword.trim(), must_change_password: false })
+        .eq("id", studentDbId);
+
+      if (updateError) throw updateError;
+
+      sessionStorage.setItem("student_must_change_pw", "false");
+      setMustChangePw(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Password changed successfully!" });
     } catch (err: any) {
-      console.error("Password update error:", err);
-      
-      let errorMessage = err.message || "Unable to update password";
-      
-      // Provide helpful error messages
-      if (errorMessage.includes("permission") || errorMessage.includes("policy")) {
-        errorMessage = "Database permission issue detected. Please ask your administrator to run the SQL fix provided in 'fix_student_password_update.sql'.";
-      } else if (errorMessage.includes("not found")) {
-        errorMessage = "Student record not found. Please log out and log back in, then try again.";
-      } else if (errorMessage.includes("function") && errorMessage.includes("does not exist")) {
-        errorMessage = "Password update function not found. Please ask your administrator to run the SQL setup.";
-      }
-      
-      toast({ 
-        title: "Password Update Failed", 
-        description: errorMessage,
-        variant: "destructive" 
-      });
+      toast({ title: "Password Update Failed", description: err.message, variant: "destructive" });
     }
     setSavingPw(false);
   };
