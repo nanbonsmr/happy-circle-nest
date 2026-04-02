@@ -288,38 +288,24 @@ const TeacherDashboard = () => {
   const handleSendResults = async (examId: string) => {
     setSendingId(examId);
     try {
-      const { data, error } = await supabase.rpc('send_exam_results_as_notifications', {
-        exam_id_param: examId
-      });
+      // Toggle results_published to true
+      const { error } = await supabase
+        .from("exams")
+        .update({ results_published: true })
+        .eq("id", examId);
 
       if (error) throw error;
-      
-      if (data?.error) {
-        throw new Error(data.error);
-      }
 
-      const sent = data?.sent ?? 0;
-      const total = data?.total ?? 0;
-      
-      if (sent > 0) {
-        toast({ 
-          title: `Results sent to ${sent} student${sent !== 1 ? "s" : ""}!`,
-          description: "Students can view their results in their dashboard."
-        });
-      } else if (total === 0) {
-        toast({ 
-          title: "No submitted results to send",
-          description: "No students have submitted this exam yet."
-        });
-      } else {
-        toast({ 
-          title: "No results sent",
-          description: "Unable to send results to students."
-        });
-      }
+      // Update local state
+      setExams(prev => prev.map(e => e.id === examId ? { ...e, results_published: true } : e));
+
+      toast({ 
+        title: "Results published!",
+        description: "Students can now view their results in their dashboard."
+      });
     } catch (err: any) { 
       toast({ 
-        title: "Send failed", 
+        title: "Failed to publish results", 
         description: err.message, 
         variant: "destructive" 
       }); 
