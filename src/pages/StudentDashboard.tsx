@@ -71,14 +71,7 @@ const StudentDashboard = () => {
         .maybeSingle();
       setStudentInfo(student);
 
-      // Get notifications for this student
-      const { data: notificationData } = await supabase
-        .from("student_notifications")
-        .select("*")
-        .eq("student_id", studentIdCode)
-        .order("created_at", { ascending: false });
       
-      setNotifications(notificationData || []);
 
       // Get exam sessions for this student
       const { data: sessions } = await (supabase
