@@ -6,7 +6,8 @@ import {
   BookOpen, CheckCircle2, Menu, X, Clock, Award, TrendingUp,
   GraduationCap, Star, Globe, Smartphone, Monitor, Tablet,
   Eye, Lock, Timer, Trophy, UserCheck, FileText, Brain,
-  Target, Sparkles, ChevronRight, Play, Pause
+  Target, Sparkles, ChevronRight, Play, Pause, MapPin,
+  School, Building2, Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -85,49 +86,190 @@ const LandingPage = () => {
     { value: "Secure", label: "& Reliable", icon: ShieldCheck },
   ];
 
+  // Sample schools data
+  const schools = [
+    {
+      name: "Nejo Ifa Boru Secondary",
+      image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=150&h=150&fit=crop&crop=center",
+      location: "Main Campus"
+    },
+    {
+      name: "St. Mary's Academy",
+      image: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=150&h=150&fit=crop&crop=center",
+      location: "Branch Campus"
+    },
+    {
+      name: "Green Valley School",
+      image: "https://images.unsplash.com/photo-1562774053-701939374585?w=150&h=150&fit=crop&crop=center",
+      location: "Partner School"
+    },
+    {
+      name: "Future Leaders High",
+      image: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=150&h=150&fit=crop&crop=center",
+      location: "Affiliate"
+    },
+    {
+      name: "Excellence Academy",
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop&crop=center",
+      location: "Partner School"
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-indigo-800 relative overflow-hidden">
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Abstract Shapes */}
+        <motion.div
+          animate={{ 
+            rotate: [0, 360],
+            scale: [1, 1.1, 1]
+          }}
+          transition={{ 
+            duration: 20, 
+            repeat: Infinity, 
+            ease: "linear" 
+          }}
+          className="absolute top-20 right-20 w-32 h-32 bg-gradient-to-br from-yellow-400/20 to-pink-400/20 rounded-full blur-xl"
+        />
+        <motion.div
+          animate={{ 
+            y: [0, -20, 0],
+            x: [0, 10, 0]
+          }}
+          transition={{ 
+            duration: 8, 
+            repeat: Infinity, 
+            ease: "easeInOut" 
+          }}
+          className="absolute top-40 left-10 w-24 h-24 bg-gradient-to-br from-green-400/20 to-blue-400/20 rounded-lg rotate-45 blur-lg"
+        />
+        <motion.div
+          animate={{ 
+            rotate: [0, -360],
+            scale: [1, 1.2, 1]
+          }}
+          transition={{ 
+            duration: 15, 
+            repeat: Infinity, 
+            ease: "linear" 
+          }}
+          className="absolute bottom-40 right-40 w-20 h-20 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-lg"
+        />
+        
+        {/* Stars */}
+        {[...Array(12)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{ 
+              opacity: [0.3, 1, 0.3],
+              scale: [1, 1.2, 1]
+            }}
+            transition={{ 
+              duration: 3 + i * 0.5, 
+              repeat: Infinity, 
+              delay: i * 0.3 
+            }}
+            className="absolute"
+            style={{
+              top: `${Math.random() * 80 + 10}%`,
+              left: `${Math.random() * 80 + 10}%`,
+            }}
+          >
+            <Star className="w-4 h-4 text-yellow-300/60 fill-current" />
+          </motion.div>
+        ))}
+
+        {/* Educational Icons */}
+        <motion.div
+          animate={{ 
+            y: [0, -15, 0],
+            rotate: [0, 5, 0]
+          }}
+          transition={{ 
+            duration: 6, 
+            repeat: Infinity, 
+            ease: "easeInOut" 
+          }}
+          className="absolute top-32 right-1/4"
+        >
+          <GraduationCap className="w-8 h-8 text-yellow-300/40" />
+        </motion.div>
+        <motion.div
+          animate={{ 
+            y: [0, 10, 0],
+            rotate: [0, -5, 0]
+          }}
+          transition={{ 
+            duration: 7, 
+            repeat: Infinity, 
+            ease: "easeInOut",
+            delay: 1
+          }}
+          className="absolute bottom-1/3 left-1/4"
+        >
+          <BookOpen className="w-6 h-6 text-green-300/40" />
+        </motion.div>
+        <motion.div
+          animate={{ 
+            scale: [1, 1.1, 1],
+            rotate: [0, 10, 0]
+          }}
+          transition={{ 
+            duration: 5, 
+            repeat: Infinity, 
+            ease: "easeInOut",
+            delay: 2
+          }}
+          className="absolute top-1/2 right-20"
+        >
+          <Trophy className="w-7 h-7 text-orange-300/40" />
+        </motion.div>
+      </div>
+
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
+      <nav className="relative z-50 bg-white/10 backdrop-blur-xl border-b border-white/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link to="/" className="flex items-center gap-3">
               <div className="relative">
-                <img src={logo} alt="NejoExamPrep" className="h-10 w-10 rounded-xl object-cover ring-2 ring-blue-100 shadow-sm" />
-                <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+                <img src={logo} alt="NejoExamPrep" className="h-10 w-10 rounded-xl object-cover ring-2 ring-white/20 shadow-lg" />
+                <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
               </div>
               <div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <span className="text-xl font-bold text-white">
                   NejoExamPrep
                 </span>
-                <div className="text-xs text-slate-500 -mt-1">Smart Exam Platform</div>
+                <div className="text-xs text-white/70 -mt-1">Smart Exam Platform</div>
               </div>
             </Link>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+              <a href="#home" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
+                Home
+              </a>
+              <a href="#about" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
+                About Us
+              </a>
+              <a href="#features" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
                 Features
               </a>
-              <a href="#how-it-works" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
-                How it Works
+              <a href="#testimonials" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
+                Testimonials
               </a>
-              <a href="#pricing" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
-                Pricing
+              <a href="#contact" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
+                Contact
               </a>
-              <div className="h-6 w-px bg-slate-200" />
-              <Button asChild variant="ghost" className="text-slate-600 hover:text-blue-600">
-                <Link to="/student">Student Login</Link>
-              </Button>
-              <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all">
-                <Link to="/login">Teacher Sign In</Link>
+              <Button asChild className="bg-white text-purple-700 hover:bg-white/90 rounded-full px-6 font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
+                <Link to="/login">Login</Link>
               </Button>
             </div>
 
             {/* Mobile Menu Button */}
             <button
               type="button"
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              className="md:hidden p-2 rounded-lg text-white/80 hover:bg-white/10 transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -140,13 +282,15 @@ const LandingPage = () => {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="md:hidden py-4 space-y-3 border-t border-slate-100"
+              className="md:hidden py-4 space-y-3 border-t border-white/20"
             >
-              <Button asChild variant="ghost" className="w-full justify-start">
-                <Link to="/student">Student Login</Link>
-              </Button>
-              <Button asChild className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                <Link to="/login">Teacher Sign In</Link>
+              <a href="#home" className="block text-white/80 hover:text-white transition-colors py-2">Home</a>
+              <a href="#about" className="block text-white/80 hover:text-white transition-colors py-2">About Us</a>
+              <a href="#features" className="block text-white/80 hover:text-white transition-colors py-2">Features</a>
+              <a href="#testimonials" className="block text-white/80 hover:text-white transition-colors py-2">Testimonials</a>
+              <a href="#contact" className="block text-white/80 hover:text-white transition-colors py-2">Contact</a>
+              <Button asChild className="w-full bg-white text-purple-700 hover:bg-white/90 rounded-full font-semibold mt-4">
+                <Link to="/login">Login</Link>
               </Button>
             </motion.div>
           )}
@@ -155,166 +299,144 @@ const LandingPage = () => {
 
       {/* Hero Section */}
       <section className="relative pt-20 pb-16 overflow-hidden">
-        {/* Background Elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <motion.div
-            style={{ y }}
-            className="absolute top-20 right-10 w-72 h-72 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl"
-          />
-          <motion.div
-            style={{ y: useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]) }}
-            className="absolute bottom-0 left-10 w-96 h-96 bg-gradient-to-br from-green-400/20 to-blue-400/20 rounded-full blur-3xl"
-          />
-        </div>
-
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left Column */}
+          <div className="text-center max-w-5xl mx-auto">
+            {/* Main Headline */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
-              className="text-center lg:text-left"
+              className="mb-8"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 mb-6"
-              >
-                <Sparkles className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-semibold text-blue-700">Smart Online Exam Preparation Platform</span>
-              </motion.div>
-
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                <span className="bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 bg-clip-text text-transparent">
-                  NejoExamPrep
+              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight mb-6">
+                <span className="text-white block mb-2">
+                  Transform Your
                 </span>
-                <br />
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Smart Exams
+                <span className="relative inline-block">
+                  <span className="text-white">Exam</span>
+                  <span className="relative mx-4">
+                    <span className="bg-gradient-to-r from-yellow-400 to-green-400 text-purple-900 px-4 py-2 rounded-2xl font-black">
+                      Experience
+                    </span>
+                  </span>
                 </span>
-                <br />
-                <span className="text-slate-700">Made Simple</span>
+                <span className="text-white block mt-2">
+                  With Smart Technology
+                </span>
               </h1>
 
-              <p className="text-lg text-slate-600 mb-8 max-w-2xl">
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-lg sm:text-xl text-white/80 mb-8 max-w-3xl mx-auto leading-relaxed"
+              >
                 Create, manage, and deliver secure online exams with advanced anti-cheat protection, 
                 real-time monitoring, and instant results. Built for modern education.
-              </p>
+              </motion.p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              {/* CTA Button */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+                className="mb-12"
+              >
                 <Button
                   size="lg"
                   asChild
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+                  className="bg-gradient-to-r from-green-400 to-yellow-400 text-purple-900 hover:from-green-500 hover:to-yellow-500 rounded-full px-8 py-4 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105 border-0"
                 >
-                  <Link to="/login" className="flex items-center gap-2">
-                    Get Started Free
-                    <ArrowRight className="h-5 w-5" />
+                  <Link to="/login" className="flex items-center gap-3">
+                    <Sparkles className="h-6 w-6" />
+                    Enroll Now
+                    <ArrowRight className="h-6 w-6" />
                   </Link>
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  asChild
-                  className="border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
-                >
-                  <Link to="/student" className="flex items-center gap-2">
-                    <Play className="h-5 w-5" />
-                    Student Portal
-                  </Link>
-                </Button>
+              </motion.div>
+            </motion.div>
+
+            {/* Schools Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-center gap-2 text-white/70">
+                <MapPin className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  Launching in schools across Ethiopia and beyond
+                </span>
+              </div>
+
+              {/* School Cards */}
+              <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+                {schools.map((school, index) => (
+                  <motion.div
+                    key={school.name}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      delay: 0.8 + index * 0.1,
+                      type: "spring",
+                      stiffness: 100
+                    }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      y: -5
+                    }}
+                    className="group cursor-pointer"
+                  >
+                    <div className="relative">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-xl group-hover:border-white/40 transition-all duration-300">
+                        <img
+                          src={school.image}
+                          alt={school.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      </div>
+                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 shadow-lg">
+                        <span className="text-xs font-semibold text-purple-900 whitespace-nowrap">
+                          {school.location}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
 
               {/* Trust Indicators */}
-              <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 1.2 }}
+                className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/60 pt-8"
+              >
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
                   <span>Free to use</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-blue-500" />
+                  <ShieldCheck className="h-4 w-4 text-blue-400" />
                   <span>Secure & reliable</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Timer className="h-4 w-4 text-purple-500" />
+                  <Timer className="h-4 w-4 text-yellow-400" />
                   <span>Real-time results</span>
                 </div>
-              </div>
-            </motion.div>
-
-            {/* Right Column - Interactive Demo */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              className="relative"
-            >
-              <div className="relative">
-                {/* Main Card */}
-                <Card className="bg-white/70 backdrop-blur-xl border-0 shadow-2xl shadow-blue-500/10">
-                  <CardContent className="p-8">
-                    <div className="text-center mb-6">
-                      <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-                        <GraduationCap className="h-8 w-8 text-white" />
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-2">Student Portal</h3>
-                      <p className="text-slate-600">Enter your credentials to access exams</p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Student ID"
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all bg-white/50"
-                        />
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="password"
-                          placeholder="Password"
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all bg-white/50"
-                        />
-                      </div>
-                      <Button className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg">
-                        Sign In to Exam
-                      </Button>
-                    </div>
-
-                    <div className="mt-6 pt-6 border-t border-slate-100">
-                      <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-                        <Lock className="h-4 w-4" />
-                        <span>Protected by advanced security</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Floating Elements */}
-                <motion.div
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -top-4 -right-4 bg-green-500 text-white p-3 rounded-xl shadow-lg"
-                >
-                  <CheckCircle2 className="h-6 w-6" />
-                </motion.div>
-
-                <motion.div
-                  animate={{ y: [0, 10, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  className="absolute -bottom-4 -left-4 bg-blue-500 text-white p-3 rounded-xl shadow-lg"
-                >
-                  <Trophy className="h-6 w-6" />
-                </motion.div>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-purple-400" />
+                  <span>Unlimited students</span>
+                </div>
+              </motion.div>
             </motion.div>
           </div>
         </div>
       </section>
       {/* Stats Section */}
-      <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-600">
+      <section className="py-16 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
@@ -324,13 +446,13 @@ const LandingPage = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="text-center text-white"
+                className="text-center"
               >
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-xl mb-3">
-                  <stat.icon className="h-6 w-6" />
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl mb-3">
+                  <stat.icon className="h-6 w-6 text-purple-600" />
                 </div>
-                <div className="text-3xl font-bold mb-1">{stat.value}</div>
-                <div className="text-blue-100 text-sm">{stat.label}</div>
+                <div className="text-3xl font-bold mb-1 text-slate-900">{stat.value}</div>
+                <div className="text-slate-600 text-sm">{stat.label}</div>
               </motion.div>
             ))}
           </div>
@@ -338,21 +460,21 @@ const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-white">
+      <section id="features" className="py-20 bg-gradient-to-br from-slate-50 to-purple-50/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-100 mb-4"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-50 border border-purple-100 mb-4"
             >
-              <Star className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-semibold text-blue-700">Powerful Features</span>
+              <Star className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-semibold text-purple-700">Powerful Features</span>
             </motion.div>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
               Everything you need for
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> modern exams</span>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"> modern exams</span>
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
               Comprehensive tools designed for educators and students, with security and ease-of-use at the forefront.
@@ -369,14 +491,14 @@ const LandingPage = () => {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="group relative"
               >
-                <Card className="h-full bg-white hover:bg-gradient-to-br hover:from-white hover:to-slate-50 border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+                <Card className="h-full bg-white hover:bg-gradient-to-br hover:from-white hover:to-purple-50/50 border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
                   <CardContent className="p-8">
                     <div className={`inline-flex items-center justify-center w-14 h-14 ${feature.bgColor} rounded-2xl mb-6 group-hover:scale-110 transition-transform`}>
                       <feature.icon className={`h-7 w-7 ${feature.textColor}`} />
                     </div>
                     <h3 className="text-xl font-bold text-slate-900 mb-3">{feature.title}</h3>
                     <p className="text-slate-600 leading-relaxed">{feature.description}</p>
-                    <div className="mt-6 flex items-center text-blue-600 font-medium group-hover:text-purple-600 transition-colors">
+                    <div className="mt-6 flex items-center text-purple-600 font-medium group-hover:text-blue-600 transition-colors">
                       <span className="text-sm">Learn more</span>
                       <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -606,11 +728,11 @@ const LandingPage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 relative overflow-hidden">
+      <section className="py-20 bg-gradient-to-br from-purple-900 via-purple-700 to-indigo-800 relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0">
           <div className="absolute top-0 left-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-yellow-400/10 rounded-full blur-3xl" />
         </div>
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -623,11 +745,11 @@ const LandingPage = () => {
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
               Ready to transform your
               <br />
-              <span className="bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-yellow-300 to-green-300 bg-clip-text text-transparent">
                 exam experience?
               </span>
             </h2>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-white/80 mb-8 max-w-2xl mx-auto">
               Join thousands of educators who trust NejoExamPrep for secure, 
               efficient, and modern online examinations.
             </p>
@@ -635,9 +757,10 @@ const LandingPage = () => {
               <Button
                 size="lg"
                 asChild
-                className="bg-white text-blue-600 hover:bg-blue-50 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105"
+                className="bg-gradient-to-r from-green-400 to-yellow-400 text-purple-900 hover:from-green-500 hover:to-yellow-500 rounded-full px-8 py-4 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105 border-0"
               >
                 <Link to="/login" className="flex items-center gap-2">
+                  <Sparkles className="h-6 w-6" />
                   Start Your First Exam
                   <ArrowRight className="h-5 w-5" />
                 </Link>
@@ -646,7 +769,7 @@ const LandingPage = () => {
                 size="lg"
                 variant="outline"
                 asChild
-                className="border-2 border-white/30 text-white hover:bg-white/10 backdrop-blur-sm"
+                className="border-2 border-white/30 text-white hover:bg-white/10 backdrop-blur-sm rounded-full px-8 py-4 text-lg font-semibold"
               >
                 <Link to="/student" className="flex items-center gap-2">
                   <GraduationCap className="h-5 w-5" />
