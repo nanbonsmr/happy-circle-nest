@@ -26,17 +26,6 @@ interface AvailableExam {
   status: string;
 }
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  score: number | null;
-  total_marks: number | null;
-  percentage: number | null;
-  is_read: boolean;
-  created_at: string;
-}
-
 type Tab = "dashboard" | "exams" | "results" | "profile";
 
 const StudentDashboard = () => {
