@@ -47,11 +47,12 @@ const ExamReady = () => {
       setExamStatus(exam.status);
       setDuration(exam.duration_minutes);
 
-      const { count } = await supabase
+      // Fetch question count - use select without head to work around RLS
+      const { data: questionsData } = await supabase
         .from("questions")
-        .select("*", { count: "exact", head: true })
+        .select("id")
         .eq("exam_id", exam.id);
-      setQuestionCount(count || 0);
+      setQuestionCount(questionsData?.length || 0);
       setLoadingExam(false);
 
       // If already active, go straight to exam

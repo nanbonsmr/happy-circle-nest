@@ -158,10 +158,70 @@ const StudentDashboard = () => {
     setSavingPw(false);
   };
 
-  const handleJoinExam = (accessCode: string) => {
-    // Set session info for the exam flow
-    sessionStorage.setItem("access_code", accessCode);
-    navigate(`/exam/${accessCode}`);
+  const handleJoinExam = async (accessCode: string) => {
+    // Already logged in — skip ID verification, create session and go to ready page
+    if (!studentDbId) return;
+    try {
+      const { data: exam, error: examError } = await supabase
+        .from("exams")
+        .select("id, status, max_participants")
+        .ilike("access_code", accessCode)
+        .in("status", ["published", "active"])
+        .maybeSingle();
+
+      if (examError || !exam) {
+        toast({ title: "Error", description: "Exam not found or not available.", variant: "destructive" });
+        return;
+      }
+
+      // Check for existing session
+      const { data: existingSession } = await (supabase
+        .from("exam_sessions")
+        .select("id, status") as any)
+        .eq("exam_id", exam.id)
+        .eq("student_registry_id", studentDbId)
+        .maybeSingle();
+
+      if (existingSession?.status === "submitted") {
+        toast({ title: "Already Submitted", description: "You have already completed this exam.", variant: "destructive" });
+        return;
+      }
+
+      let sessionId: string;
+      if (existingSession) {
+        sessionId = existingSession.id;
+      } else {
+        if (exam.max_participants) {
+          const { count } = await supabase
+            .from("exam_sessions")
+            .select("*", { count: "exact", head: true })
+            .eq("exam_id", exam.id);
+          if ((count || 0) >= exam.max_participants) {
+            toast({ title: "Full", description: "Maximum participants reached.", variant: "destructive" });
+            return;
+          }
+        }
+        const { data: newSession, error: sessionError } = await supabase
+          .from("exam_sessions")
+          .insert({
+            exam_id: exam.id,
+            student_name: studentName,
+            student_email: sessionStorage.getItem("student_email") || studentIdCode,
+            status: "waiting",
+            student_registry_id: studentDbId,
+          })
+          .select("id")
+          .single();
+        if (sessionError) throw sessionError;
+        sessionId = newSession.id;
+      }
+
+      sessionStorage.setItem("session_id", sessionId);
+      sessionStorage.setItem("access_code", accessCode);
+      navigate(`/exam/${accessCode}/ready`);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
   };
 
   const navItems = [
