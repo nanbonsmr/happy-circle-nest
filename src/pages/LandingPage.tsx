@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   Users, ShieldCheck, ArrowRight, Zap, BarChart3,
-  BookOpen, CheckCircle2, Menu, X, Clock, Award, TrendingUp,
+  BookOpen, CheckCircle2, Menu, X, Clock, TrendingUp,
   GraduationCap, Star, Globe, Smartphone, Monitor, Tablet,
   Eye, Lock, Timer, Trophy, UserCheck, FileText, Brain,
   Target, Sparkles, ChevronRight, Play, Pause, MapPin,
@@ -666,67 +666,6 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-gradient-to-br from-slate-50 to-blue-50/50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-100 mb-4"
-            >
-              <Award className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-semibold text-green-700">Simple Pricing</span>
-            </motion.div>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-              Free for
-              <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent"> educational use</span>
-            </h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              NejoExamPrep is completely free for schools and educational institutions. 
-              No hidden costs, no subscription fees.
-            </p>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-lg mx-auto"
-          >
-            <Card className="bg-white border-0 shadow-2xl shadow-blue-500/10 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-500 to-blue-500 p-6 text-center text-white">
-                <h3 className="text-2xl font-bold mb-2">Educational License</h3>
-                <div className="text-4xl font-bold mb-2">Free</div>
-                <p className="text-green-100">Forever for schools</p>
-              </div>
-              <CardContent className="p-8">
-                <div className="space-y-4">
-                  {[
-                    "Unlimited exams and students",
-                    "Advanced security features",
-                    "Real-time monitoring",
-                    "Instant result generation",
-                    "Analytics and reporting",
-                    "Mobile-responsive design",
-                    "24/7 technical support"
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="text-slate-700">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button asChild className="w-full mt-8 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow-lg">
-                  <Link to="/login">Get Started Now</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-purple-900 via-purple-700 to-indigo-800 relative overflow-hidden">
         {/* Background Elements */}
