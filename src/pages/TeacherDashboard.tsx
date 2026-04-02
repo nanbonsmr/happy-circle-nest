@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, BarChart3, Settings,
   Users, Activity, Loader2, Play, Pencil, Trash2, Mail,
   LogOut, Plus, Search, Download, ChevronUp, ChevronDown,
-  Copy, Radio, Square, RefreshCw, ShieldAlert, Eye,
+  Copy, Radio, Square, RefreshCw, ShieldAlert, Eye, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,21 +238,45 @@ const TeacherDashboard = () => {
     if (!editingExam || !editTitle.trim()) return;
     setEditSaving(true);
     const dur = parseInt(editDuration) || 30;
+    
     // Snapshot for rollback
-    const prev = { title: editingExam.title, subject: editingExam.subject, duration_minutes: editingExam.duration_minutes };
+    const prev = { 
+      title: editingExam.title, 
+      subject: editingExam.subject, 
+      duration_minutes: editingExam.duration_minutes,
+      started_at: editingExam.started_at 
+    };
+    
+    // If exam is active, reset the start time to restart the timer
+    const updateData: any = {
+      title: editTitle.trim(),
+      subject: editSubject.trim(),
+      duration_minutes: dur
+    };
+    
+    // Reset start time if exam is currently active (this restarts the timer)
+    if (editingExam.status === "active") {
+      updateData.started_at = new Date().toISOString();
+    }
+    
     // Optimistic update
     setExams((list) => list.map((e) => e.id === editingExam.id
-      ? { ...e, title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur } : e));
+      ? { ...e, ...updateData } : e));
     setEditingExam(null);
+    
     const { error } = await supabase.from("exams")
-      .update({ title: editTitle.trim(), subject: editSubject.trim(), duration_minutes: dur })
+      .update(updateData)
       .eq("id", editingExam.id);
+      
     if (error) {
       // Rollback
       setExams((list) => list.map((e) => e.id === editingExam.id ? { ...e, ...prev } : e));
       toast({ title: "Failed to update exam", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Exam updated successfully." });
+      const message = editingExam.status === "active" 
+        ? "Exam updated and timer restarted!" 
+        : "Exam updated successfully.";
+      toast({ title: message });
     }
     setEditSaving(false);
   };
@@ -875,6 +899,20 @@ const TeacherDashboard = () => {
               <Label htmlFor="edit-duration">Duration (minutes)</Label>
               <Input id="edit-duration" type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} min="1" max="300" />
             </div>
+            
+            {editingExam?.status === "active" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                <div className="flex items-center gap-2 text-amber-800 font-medium mb-1">
+                  <Clock className="h-4 w-4" />
+                  Timer Reset Notice
+                </div>
+                <p className="text-amber-700">
+                  Since this exam is currently active, updating it will restart the timer. 
+                  Students will get the full duration from now.
+                </p>
+              </div>
+            )}
+            
             <p className="text-xs text-slate-400">To edit questions or access code, use the full editor.</p>
           </div>
           <DialogFooter>

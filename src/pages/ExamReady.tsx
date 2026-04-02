@@ -71,8 +71,10 @@ const ExamReady = () => {
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "exams", filter: `id=eq.${exam.id}` },
           async (payload) => {
-            const newStatus = payload.new.status;
+            const newExam = payload.new as any;
+            const newStatus = newExam.status;
             setExamStatus(newStatus);
+            
             if (newStatus === "active") {
               const sid = sessionStorage.getItem("session_id");
               if (sid) {
@@ -82,6 +84,10 @@ const ExamReady = () => {
                   .eq("id", sid);
               }
               navigate(`/exam/${accessCode}/take`);
+            } else if (newExam.title !== examTitle) {
+              // Exam details were updated
+              setExamTitle(newExam.title);
+              setDuration(newExam.duration_minutes);
             }
           }
         )

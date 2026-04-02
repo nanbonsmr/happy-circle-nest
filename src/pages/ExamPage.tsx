@@ -288,7 +288,7 @@ const ExamPage = () => {
         // Load exam data
         const { data: exam } = await supabase
           .from("exams")
-          .select("id, title, duration_minutes, started_at, status, security_level")
+          .select("id, title, duration_minutes, started_at, status, security_level, updated_at")
           .eq("access_code", accessCode || "")
           .maybeSingle();
 
@@ -330,12 +330,43 @@ const ExamPage = () => {
         const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
         const endTime = startedAt + exam.duration_minutes * 60 * 1000;
         const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-        if (remaining <= 0) { 
+        
+        // If remaining time is 0 or negative, but exam status is still "active", 
+        // this might be due to an exam edit that reset the timer
+        if (remaining <= 0 && exam.status === "active") {
+          // Check if the exam was recently updated (within last 5 minutes)
+          const examUpdatedAt = exam.updated_at ? new Date(exam.updated_at).getTime() : startedAt;
+          const timeSinceUpdate = Date.now() - examUpdatedAt;
+          
+          // If exam was updated recently, treat it as if it just started
+          if (timeSinceUpdate < 5 * 60 * 1000) { // 5 minutes
+            const newStartTime = examUpdatedAt;
+            const newEndTime = newStartTime + exam.duration_minutes * 60 * 1000;
+            const newRemaining = Math.max(0, Math.floor((newEndTime - Date.now()) / 1000));
+            
+            if (newRemaining > 0) {
+              setTimeLeft(newRemaining);
+              toast({ 
+                title: "Exam Updated", 
+                description: "The teacher has updated this exam. Timer has been reset." 
+              });
+            } else {
+              setExamEnded(true); 
+              setLoading(false); 
+              return; 
+            }
+          } else {
+            setExamEnded(true); 
+            setLoading(false); 
+            return; 
+          }
+        } else if (remaining <= 0) {
           setExamEnded(true); 
           setLoading(false); 
           return; 
+        } else {
+          setTimeLeft(remaining);
         }
-        setTimeLeft(remaining);
 
         // Load questions
         const { data: qs } = await supabase
@@ -367,7 +398,7 @@ const ExamPage = () => {
         
         setLoading(false);
 
-        // Real-time: detect if teacher closes exam while student is taking it
+        // Real-time: detect if teacher closes exam or updates it while student is taking it
         const examChannel = supabase.channel(`exam-status-${exam.id}`)
           .on("postgres_changes", { 
             event: "UPDATE", 
@@ -375,8 +406,35 @@ const ExamPage = () => {
             table: "exams", 
             filter: `id=eq.${exam.id}` 
           }, (payload) => {
-            if (payload.new.status !== "active") {
+            const newExam = payload.new as any;
+            
+            if (newExam.status !== "active") {
               setExamEnded(true);
+            } else if (newExam.started_at !== exam.started_at) {
+              // Exam was restarted - recalculate time
+              const newStartedAt = new Date(newExam.started_at).getTime();
+              const newEndTime = newStartedAt + newExam.duration_minutes * 60 * 1000;
+              const newRemaining = Math.max(0, Math.floor((newEndTime - Date.now()) / 1000));
+              
+              if (newRemaining > 0) {
+                setTimeLeft(newRemaining);
+                setExamTitle(newExam.title || examTitle);
+                toast({ 
+                  title: "Exam Updated", 
+                  description: "The teacher has updated this exam. Timer has been reset.",
+                  duration: 5000
+                });
+              } else {
+                setExamEnded(true);
+              }
+            } else if (newExam.title !== examTitle) {
+              // Just title/content updated, no timer reset
+              setExamTitle(newExam.title || examTitle);
+              toast({ 
+                title: "Exam Updated", 
+                description: "The teacher has updated exam details.",
+                duration: 3000
+              });
             }
           })
           .subscribe();

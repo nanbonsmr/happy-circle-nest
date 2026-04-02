@@ -161,13 +161,34 @@ const CreateExam = () => {
       let examError: any = null;
 
       if (isEditing && examId) {
+        // Check if we're editing an active exam - if so, reset the timer
+        const { data: currentExam } = await supabase
+          .from("exams")
+          .select("status, started_at")
+          .eq("id", examId)
+          .single();
+        
+        // If exam is currently active, reset the start time to restart the timer
+        if (currentExam?.status === "active") {
+          insertPayload.started_at = new Date().toISOString();
+        }
+        
         // Update existing exam
         const { data, error } = await supabase.from("exams")
           .update({ ...insertPayload, teacher_id: undefined } as any)
           .eq("id", examId).select().single();
         exam = data; examError = error;
+        
         // Delete old questions before reinserting
         if (!examError) await supabase.from("questions").delete().eq("exam_id", examId);
+        
+        // Show appropriate message
+        if (!examError && currentExam?.status === "active") {
+          toast({ 
+            title: "Exam Updated!", 
+            description: "Timer has been restarted. Students can continue with the updated exam." 
+          });
+        }
       } else {
         const result = await supabase.from("exams").insert(insertPayload as any).select().single();
         exam = result.data; examError = result.error;
@@ -243,7 +264,14 @@ const CreateExam = () => {
       const { error: qError } = await supabase.from("questions").insert(questionsToInsert);
       if (qError) throw qError;
 
-      toast({ title: isEditing ? "Exam Updated!" : "Exam Published!", description: "Students can now access the exam using the link." });
+      // Only show generic success message if we haven't already shown a custom one for active exams
+      if (!isEditing || examStatus !== "active") {
+        toast({ 
+          title: isEditing ? "Exam Updated!" : "Exam Published!", 
+          description: "Students can now access the exam using the link." 
+        });
+      }
+      
       navigate("/teacher");
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
