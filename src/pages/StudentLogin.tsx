@@ -63,16 +63,11 @@ const StudentLogin = () => {
   return (
     <div className="min-h-screen bg-[#0f1e2e] flex flex-col">
       <header className="flex items-center justify-between px-6 py-4">
-        <Link to="/" className="flex items-center gap-2 text-white font-bold text-lg tracking-tight">
+        <Link to="#" className="flex items-center gap-2 text-white font-bold text-lg tracking-tight">
           <img src={logo} alt="NejoExamPrep" className="h-8 w-8 rounded-full object-cover" />
           NejoExamPrep
         </Link>
-        <Link
-          to="/login"
-          className="px-3 py-1.5 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors text-sm"
-        >
-          Teacher Login
-        </Link>
+        
       </header>
 
       <div className="flex-1 flex items-center justify-center px-4">
