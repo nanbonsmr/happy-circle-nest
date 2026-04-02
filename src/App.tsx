@@ -18,7 +18,6 @@ import CreateExam from "./pages/CreateExam";
 import StudentLogin from "./pages/StudentLogin";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentResultDetail from "./pages/StudentResultDetail";
-import SecureExamRoute from "./components/SecureExamRoute";
 
 const queryClient = new QueryClient();
 
@@ -32,36 +31,12 @@ const App = () => (
           <Route path="/" element={<LandingPage />} />
           <Route path="/old" element={<Index />} />
           <Route path="/student" element={<StudentLogin />} />
-          <Route path="/student/dashboard" element={
-            <SecureExamRoute requireSecureEntry={false}>
-              <StudentDashboard />
-            </SecureExamRoute>
-          } />
-          <Route path="/student/results/:sessionId" element={
-            <SecureExamRoute requireSecureEntry={false}>
-              <StudentResultDetail />
-            </SecureExamRoute>
-          } />
-          <Route path="/exam/:accessCode" element={
-            <SecureExamRoute>
-              <StudentAccess />
-            </SecureExamRoute>
-          } />
-          <Route path="/exam/:accessCode/ready" element={
-            <SecureExamRoute>
-              <ExamReady />
-            </SecureExamRoute>
-          } />
-          <Route path="/exam/:accessCode/take" element={
-            <SecureExamRoute requireSecureEntry={true}>
-              <ExamPage />
-            </SecureExamRoute>
-          } />
-          <Route path="/exam/:accessCode/complete" element={
-            <SecureExamRoute>
-              <ExamComplete />
-            </SecureExamRoute>
-          } />
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/student/results/:sessionId" element={<StudentResultDetail />} />
+          <Route path="/exam/:accessCode" element={<StudentAccess />} />
+          <Route path="/exam/:accessCode/ready" element={<ExamReady />} />
+          <Route path="/exam/:accessCode/take" element={<ExamPage />} />
+          <Route path="/exam/:accessCode/complete" element={<ExamComplete />} />
           <Route path="/login" element={<AdminLogin />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/teacher/create" element={<CreateExam />} />
