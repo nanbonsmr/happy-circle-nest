@@ -145,10 +145,16 @@ const ExamPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [examId, setExamId] = useState("");
+  const [examTitle, setExamTitle] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [examEnded, setExamEnded] = useState(false);
   const [ejected, setEjected] = useState(false);
   const [securityLevel, setSecurityLevel] = useState<SecurityLevel>("low");
+  
+  // Student data states
+  const [studentName, setStudentName] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [studentData, setStudentData] = useState<any>(null);
 
   const totalViolationsRef = useRef(0);
   const warningOpenRef = useRef(false);
@@ -278,52 +284,114 @@ const ExamPage = () => {
     window.addEventListener("beforeunload", onBeforeUnload);
 
     const loadExam = async () => {
-      const { data: exam } = await supabase
-        .from("exams")
-        .select("id, duration_minutes, started_at, status, security_level")
-        .eq("access_code", accessCode || "")
-        .maybeSingle();
+      try {
+        // Load exam data
+        const { data: exam } = await supabase
+          .from("exams")
+          .select("id, title, duration_minutes, started_at, status, security_level")
+          .eq("access_code", accessCode || "")
+          .maybeSingle();
 
-      if (!exam || exam.status !== "active") { setExamEnded(true); setLoading(false); return; }
-
-      setExamId(exam.id);
-      setSecurityLevel((exam.security_level as SecurityLevel) || "low");
-
-      const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
-      const endTime = startedAt + exam.duration_minutes * 60 * 1000;
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      if (remaining <= 0) { setExamEnded(true); setLoading(false); return; }
-      setTimeLeft(remaining);
-
-      const { data: qs } = await supabase
-        .from("questions")
-        .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
-        .eq("exam_id", exam.id).order("question_order");
-      setQuestions(qs || []);
-
-      const { data: existingAnswers } = await supabase
-        .from("student_answers").select("question_id, selected_answer").eq("session_id", sid);
-      if (existingAnswers) {
-        const ansMap: Record<string, string> = {};
-        existingAnswers.forEach((a: any) => { if (a.selected_answer) ansMap[a.question_id] = a.selected_answer; });
-        setAnswers(ansMap);
-        if (Object.keys(ansMap).length > 0) {
-          toast({ title: "Welcome back!", description: "Your previous answers have been restored." });
+        if (!exam || exam.status !== "active") { 
+          setExamEnded(true); 
+          setLoading(false); 
+          return; 
         }
-      }
-      setLoading(false);
 
-      // Real-time: detect if teacher closes exam while student is taking it
-      const examChannel = supabase.channel(`exam-status-${exam.id}`)
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "exams", filter: `id=eq.${exam.id}` },
-          (payload) => {
+        setExamId(exam.id);
+        setExamTitle(exam.title || "Exam");
+        setSecurityLevel((exam.security_level as SecurityLevel) || "low");
+
+        // Load student data from session and database
+        const sessionStudentName = sessionStorage.getItem("student_name") || "";
+        const sessionStudentId = sessionStorage.getItem("student_id") || "";
+        const studentDbId = sessionStorage.getItem("student_db_id");
+        
+        setStudentName(sessionStudentName);
+        setStudentId(sessionStudentId);
+
+        // Fetch additional student data from database if available
+        if (studentDbId) {
+          const { data: student } = await supabase
+            .from("students")
+            .select("full_name, student_id, email, grade, gender")
+            .eq("id", studentDbId)
+            .maybeSingle();
+          
+          if (student) {
+            setStudentData(student);
+            // Use database name if available, fallback to session
+            setStudentName(student.full_name || sessionStudentName);
+            setStudentId(student.student_id || sessionStudentId);
+          }
+        }
+
+        // Calculate time remaining
+        const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
+        const endTime = startedAt + exam.duration_minutes * 60 * 1000;
+        const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+        if (remaining <= 0) { 
+          setExamEnded(true); 
+          setLoading(false); 
+          return; 
+        }
+        setTimeLeft(remaining);
+
+        // Load questions
+        const { data: qs } = await supabase
+          .from("questions")
+          .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .eq("exam_id", exam.id)
+          .order("question_order");
+        setQuestions(qs || []);
+
+        // Load existing answers
+        const { data: existingAnswers } = await supabase
+          .from("student_answers")
+          .select("question_id, selected_answer")
+          .eq("session_id", sid);
+        
+        if (existingAnswers) {
+          const ansMap: Record<string, string> = {};
+          existingAnswers.forEach((a: any) => { 
+            if (a.selected_answer) ansMap[a.question_id] = a.selected_answer; 
+          });
+          setAnswers(ansMap);
+          if (Object.keys(ansMap).length > 0) {
+            toast({ 
+              title: "Welcome back!", 
+              description: "Your previous answers have been restored." 
+            });
+          }
+        }
+        
+        setLoading(false);
+
+        // Real-time: detect if teacher closes exam while student is taking it
+        const examChannel = supabase.channel(`exam-status-${exam.id}`)
+          .on("postgres_changes", { 
+            event: "UPDATE", 
+            schema: "public", 
+            table: "exams", 
+            filter: `id=eq.${exam.id}` 
+          }, (payload) => {
             if (payload.new.status !== "active") {
               setExamEnded(true);
             }
           })
-        .subscribe();
+          .subscribe();
 
-      return () => { supabase.removeChannel(examChannel); };
+        return () => { supabase.removeChannel(examChannel); };
+        
+      } catch (error: any) {
+        console.error("Error loading exam:", error);
+        toast({ 
+          title: "Error loading exam", 
+          description: error.message, 
+          variant: "destructive" 
+        });
+        setLoading(false);
+      }
     };
 
     let cleanupExamChannel: (() => void) | undefined;
@@ -469,9 +537,12 @@ const ExamPage = () => {
         {/* Minimal top bar */}
         <div className="bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-bold">E</span>
+              </div>
+              <div className="text-sm font-medium text-gray-800">
+                {examTitle}
               </div>
               {totalViolations > 0 && (
                 <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
@@ -484,14 +555,14 @@ const ExamPage = () => {
                 </div>
               )}
             </div>
-            <div className="text-sm text-gray-600">
-              MAMITU TOLA HUJUQA | 000074480
+            <div className="text-sm text-gray-600 font-medium">
+              {studentName ? studentName.toUpperCase() : "STUDENT"} | {studentId || "ID NOT FOUND"}
             </div>
           </div>
         </div>
 
         {/* Main content area */}
-        <div className="flex h-[calc(100vh-60px)]">
+        <div className="flex h-[calc(100vh-60px-32px)]"> {/* Adjusted for header and footer */}
           {/* Left side - Question content */}
           <div className="flex-1 p-8 overflow-y-auto">
             <AnimatePresence mode="wait">
@@ -503,8 +574,10 @@ const ExamPage = () => {
                 transition={{ duration: 0.25 }}
                 className="max-w-3xl"
               >
-                {/* Section title */}
-                <h1 className="text-lg font-medium text-gray-800 mb-6">direction I</h1>
+                {/* Section title - dynamic based on block or question data */}
+                <h1 className="text-lg font-medium text-gray-800 mb-6">
+                  {q.block_id ? `Block ${q.block_order || 1}` : `Question ${currentQuestion + 1}`}
+                </h1>
 
                 {/* Instructions/Paragraph */}
                 {(q.instructions || q.paragraph) && (
@@ -516,9 +589,21 @@ const ExamPage = () => {
 
                 {/* Question */}
                 <div className="mb-6">
-                  <p className="text-base text-gray-800 font-medium mb-4">
-                    {currentQuestion + 1}.{q.marks > 1 ? ` (${q.marks} marks)` : ''} {q.question_text}
-                  </p>
+                  <div className="flex items-start gap-2 mb-4">
+                    <span className="text-sm font-medium text-gray-500 mt-1">
+                      {currentQuestion + 1}.
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-base text-gray-800 font-medium mb-1">
+                        {q.question_text}
+                      </p>
+                      {q.marks > 1 && (
+                        <span className="text-xs text-blue-600 font-medium">
+                          ({q.marks} marks)
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
                   {/* Answer options */}
                   <div className="space-y-3">
@@ -645,6 +730,24 @@ const ExamPage = () => {
             {/* Status indicator */}
             <div className="mt-4 text-xs text-gray-500 text-center">
               {answeredCount}/{questions.length} questions answered
+            </div>
+          </div>
+        </div>
+
+        {/* Footer with additional info */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 px-6 py-2">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="flex items-center gap-4">
+              <span>Student: {studentName || "Unknown"}</span>
+              <span>ID: {studentId || "N/A"}</span>
+              {studentData?.grade && <span>Grade: {studentData.grade}</span>}
+            </div>
+            <div className="flex items-center gap-4">
+              <span>Exam: {examTitle || "Exam"}</span>
+              <span>Progress: {Math.round((answeredCount / questions.length) * 100)}%</span>
+              <span className={isTimeLow ? "text-red-600 font-medium" : ""}>
+                Time: {formatTime(timeLeft)}
+              </span>
             </div>
           </div>
         </div>
