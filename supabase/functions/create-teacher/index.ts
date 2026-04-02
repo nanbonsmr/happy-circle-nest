@@ -60,27 +60,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create a fresh client instance for signup (won't affect caller's session)
-    const signupClient = createClient(supabaseUrl, anonKey);
-    
-    // Sign up the teacher using the fresh client
-    const { data: signUpData, error: signUpError } = await signupClient.auth.signUp({
+    // Use admin API to create user (does NOT affect caller's session)
+    const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
       email: email.trim(),
       password,
-      options: {
-        data: {
-          full_name: full_name?.trim() || "",
-        }
-      }
+      email_confirm: true,
+      user_metadata: {
+        full_name: full_name?.trim() || "",
+      },
     });
 
-    if (signUpError) {
-      return new Response(JSON.stringify({ error: `Teacher creation failed: ${signUpError.message}` }), {
+    if (createError) {
+      return new Response(JSON.stringify({ error: `Teacher creation failed: ${createError.message}` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!signUpData.user) {
+    if (!createData.user) {
       return new Response(JSON.stringify({ error: "No user data returned" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -93,11 +89,11 @@ Deno.serve(async (req) => {
     if (full_name?.trim()) {
       await adminClient.from("profiles").update({
         full_name: full_name.trim(),
-      }).eq("id", signUpData.user.id);
+      }).eq("id", createData.user.id);
     }
 
     return new Response(
-      JSON.stringify({ success: true, user_id: signUpData.user.id }),
+      JSON.stringify({ success: true, user_id: createData.user.id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {

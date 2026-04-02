@@ -26,17 +26,6 @@ interface AvailableExam {
   status: string;
 }
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  score: number | null;
-  total_marks: number | null;
-  percentage: number | null;
-  is_read: boolean;
-  created_at: string;
-}
-
 type Tab = "dashboard" | "exams" | "results" | "profile";
 
 const StudentDashboard = () => {
@@ -46,7 +35,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<ExamResult[]>([]);
   const [availableExams, setAvailableExams] = useState<AvailableExam[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  
   const [studentInfo, setStudentInfo] = useState<any>(null);
   const [mustChangePw, setMustChangePw] = useState(false);
 
@@ -82,14 +71,7 @@ const StudentDashboard = () => {
         .maybeSingle();
       setStudentInfo(student);
 
-      // Get notifications for this student
-      const { data: notificationData } = await supabase
-        .from("student_notifications")
-        .select("*")
-        .eq("student_id", studentIdCode)
-        .order("created_at", { ascending: false });
       
-      setNotifications(notificationData || []);
 
       // Get exam sessions for this student
       const { data: sessions } = await (supabase
@@ -141,21 +123,7 @@ const StudentDashboard = () => {
     navigate("/student");
   };
 
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      await supabase
-        .from("student_notifications")
-        .update({ is_read: true })
-        .eq("id", notificationId);
-      
-      // Update local state
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-      );
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    }
-  };
+  
 
   const handleChangePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 4) {
@@ -166,87 +134,26 @@ const StudentDashboard = () => {
       toast({ title: "Passwords do not match", variant: "destructive" });
       return;
     }
-    
     if (!studentDbId) {
-      toast({ title: "Error", description: "Student session not found. Please log in again.", variant: "destructive" });
+      toast({ title: "Error", description: "Student session not found.", variant: "destructive" });
       return;
     }
-    
     setSavingPw(true);
     try {
-      console.log("Student updating password for ID:", studentDbId);
-      
-      // Use the database function (most reliable approach)
-      const { data: functionResult, error: functionError } = await supabase.rpc('update_student_password', {
-        student_db_id: studentDbId,
-        new_password: newPassword.trim()
-      });
-      
-      console.log("Password function result:", functionResult, "Error:", functionError);
-      
-      // Check for function call errors
-      if (functionError) {
-        throw new Error(`Database function error: ${functionError.message}`);
-      }
-      
-      // Check the function result
-      if (!functionResult) {
-        throw new Error("No response from password update function. Please try again.");
-      }
-      
-      // Handle function response
-      if (functionResult.success) {
-        console.log("Password update succeeded:", functionResult.message);
-        
-        // Success - update session and UI
-        sessionStorage.setItem("student_must_change_pw", "false");
-        sessionStorage.setItem("student_password", newPassword.trim());
-        
-        setMustChangePw(false);
-        setNewPassword("");
-        setConfirmPassword("");
-        
-        toast({ 
-          title: "Password changed successfully!", 
-          description: "Your new password has been saved. You can now use it to log in."
-        });
-        
-      } else {
-        // Function returned an error
-        const errorMsg = functionResult.error || "Password update failed for unknown reason";
-        console.error("Function returned error:", errorMsg);
-        
-        // Provide specific error messages based on the error
-        if (errorMsg.includes("not found")) {
-          throw new Error("Student record not found. Please contact support.");
-        } else if (errorMsg.includes("4 characters")) {
-          throw new Error("Password must be at least 4 characters long.");
-        } else if (errorMsg.includes("permission") || errorMsg.includes("access")) {
-          throw new Error("Database permission issue. The administrator needs to run the SQL fix provided.");
-        } else {
-          throw new Error(errorMsg);
-        }
-      }
-      
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({ password: newPassword.trim(), must_change_password: false })
+        .eq("id", studentDbId);
+
+      if (updateError) throw updateError;
+
+      sessionStorage.setItem("student_must_change_pw", "false");
+      setMustChangePw(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Password changed successfully!" });
     } catch (err: any) {
-      console.error("Password update error:", err);
-      
-      let errorMessage = err.message || "Unable to update password";
-      
-      // Provide helpful error messages
-      if (errorMessage.includes("permission") || errorMessage.includes("policy")) {
-        errorMessage = "Database permission issue detected. Please ask your administrator to run the SQL fix provided in 'fix_student_password_update.sql'.";
-      } else if (errorMessage.includes("not found")) {
-        errorMessage = "Student record not found. Please log out and log back in, then try again.";
-      } else if (errorMessage.includes("function") && errorMessage.includes("does not exist")) {
-        errorMessage = "Password update function not found. Please ask your administrator to run the SQL setup.";
-      }
-      
-      toast({ 
-        title: "Password Update Failed", 
-        description: errorMessage,
-        variant: "destructive" 
-      });
+      toast({ title: "Password Update Failed", description: err.message, variant: "destructive" });
     }
     setSavingPw(false);
   };
@@ -375,69 +282,6 @@ const StudentDashboard = () => {
                 </div>
               </div>
             </div>
-
-            {/* Notifications */}
-            {notifications.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <h2 className="font-bold text-[#0f172a] flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    Exam Results
-                  </h2>
-                  <span className="text-xs text-slate-500">{notifications.filter(n => !n.is_read).length} new</span>
-                </div>
-                <div className="divide-y divide-slate-50">
-                  {notifications.slice(0, 3).map((notification) => (
-                    <div 
-                      key={notification.id} 
-                      className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer ${
-                        !notification.is_read ? 'bg-blue-50/50' : ''
-                      }`}
-                      onClick={() => {
-                        if (!notification.is_read) {
-                          markNotificationAsRead(notification.id);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-sm text-[#0f172a] mb-1">{notification.title}</h3>
-                          <p className="text-xs text-slate-600 mb-2">{notification.message}</p>
-                          {notification.score !== null && notification.total_marks !== null && (
-                            <div className="flex items-center gap-4 text-xs">
-                              <span className="text-slate-500">
-                                Score: <span className="font-semibold text-[#0f172a]">{notification.score}/{notification.total_marks}</span>
-                              </span>
-                              {notification.percentage !== null && (
-                                <span className={`font-semibold ${
-                                  notification.percentage >= 70 ? 'text-green-600' : 
-                                  notification.percentage >= 40 ? 'text-amber-600' : 'text-red-600'
-                                }`}>
-                                  {notification.percentage}%
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {new Date(notification.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {notifications.length > 3 && (
-                  <div className="px-5 py-3 bg-slate-50 text-center">
-                    <button 
-                      onClick={() => setTab("results")} 
-                      className="text-xs text-[#2563EB] hover:underline font-medium"
-                    >
-                      View All Results
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Recent results */}
             {publishedResults.length > 0 && (
