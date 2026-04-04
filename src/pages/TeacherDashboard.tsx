@@ -615,7 +615,7 @@ const TeacherDashboard = () => {
                               {exam.status === "active" && <button type="button" onClick={() => handleStopExam(exam.id)} disabled={stoppingId === exam.id} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="Stop exam">{stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}</button>}
                               <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit questions"><Pencil className="h-3.5 w-3.5" /></button>
                               <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Quick edit"><Settings className="h-3.5 w-3.5" /></button>
-                              <button type="button" onClick={() => handleCopyLink(exam.access_code)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy exam link"><Eye className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleCopyLink(exam.access_code)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy exam link"><Copy className="h-3.5 w-3.5" /></button>
                               <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
                                 {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
                               </button>
