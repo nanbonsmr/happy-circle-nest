@@ -182,62 +182,29 @@ const AdminDashboard = () => {
         setShowTeacherDialog(false);
         toast({ title: "Teacher updated successfully." });
       } else {
-        // CREATE new teacher using isolated signup (preserves admin session)
+        // CREATE new teacher via Edge Function (preserves admin session)
         if (teacherPassword.length < 6) throw new Error("Password must be at least 6 characters.");
 
-        try {
-          // Store current session
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          
-          // Create teacher account
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!currentSession) throw new Error("Admin session not found");
+
+        const { data, error: fnError } = await supabase.functions.invoke("create-teacher", {
+          body: {
             email: teacherEmail.trim(),
             password: teacherPassword,
-            options: {
-              data: {
-                full_name: teacherName.trim() || "",
-              }
-            }
-          });
+            full_name: teacherName.trim() || "",
+          },
+        });
 
-          if (signUpError) {
-            throw new Error(`Teacher creation failed: ${signUpError.message}`);
-          }
+        if (fnError) throw new Error(fnError.message || "Failed to create teacher");
+        if (data?.error) throw new Error(data.error);
 
-          if (!signUpData.user) {
-            throw new Error("Teacher creation returned no user data");
-          }
-
-          // Immediately restore admin session
-          if (currentSession) {
-            await supabase.auth.setSession(currentSession);
-          }
-
-          // Wait for trigger to complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-
-          // Update profile with full name
-          if (teacherName.trim()) {
-            await supabase.from("profiles").update({
-              full_name: teacherName.trim(),
-            }).eq("id", signUpData.user.id);
-          }
-
-          setShowTeacherDialog(false);
-          toast({
-            title: "Teacher account created!",
-            description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword} · Please share these credentials manually with the teacher.`,
-          });
-          await loadData();
-        } catch (error: any) {
-          // Ensure admin session is restored even if there's an error
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          if (!currentSession) {
-            // Try to restore session or redirect to login
-            window.location.href = '/login';
-          }
-          throw error;
-        }
+        setShowTeacherDialog(false);
+        toast({
+          title: "Teacher account created!",
+          description: `Email: ${teacherEmail.trim()} · Password: ${teacherPassword} · Please share these credentials manually with the teacher.`,
+        });
+        await loadData();
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
