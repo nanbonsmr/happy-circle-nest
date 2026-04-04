@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, Home } from "lucide-react";
+import { CheckCircle2, Home, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const ExamComplete = () => {
+  const isStudentLoggedIn = sessionStorage.getItem("student_logged_in") === "true";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, type: "spring" }} className="w-full max-w-md text-center">
@@ -20,12 +22,25 @@ const ExamComplete = () => {
             </motion.div>
             <h1 className="text-2xl font-bold mb-2">Exam Submitted!</h1>
             <p className="text-muted-foreground mb-6">
-              Your answers have been recorded successfully. Your teacher will send you the results via email.
+              Your answers have been recorded successfully. You can view your results once the teacher publishes them.
             </p>
 
-            <Button asChild variant="outline" className="gap-2">
-              <Link to="/"><Home className="h-4 w-4" /> Back to Home</Link>
-            </Button>
+            <div className="flex flex-col gap-2">
+              {isStudentLoggedIn ? (
+                <>
+                  <Button asChild className="gap-2 bg-[#2563EB] hover:bg-[#1d4ed8]">
+                    <Link to="/student/dashboard"><BarChart3 className="h-4 w-4" /> Go to Dashboard</Link>
+                  </Button>
+                  <Button asChild variant="outline" className="gap-2">
+                    <Link to="/"><Home className="h-4 w-4" /> Back to Home</Link>
+                  </Button>
+                </>
+              ) : (
+                <Button asChild variant="outline" className="gap-2">
+                  <Link to="/"><Home className="h-4 w-4" /> Back to Home</Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>

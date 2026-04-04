@@ -517,8 +517,11 @@ const ExamPage = () => {
             <p className="text-slate-500 text-sm mb-6">
               Your score has been set to <strong>0</strong> and your teacher has been notified. This action cannot be undone.
             </p>
-            <Button type="button" onClick={() => navigate("/")} variant="outline" className="w-full">
-              Return to Home
+            <Button type="button" onClick={() => {
+              const isStudent = sessionStorage.getItem("student_logged_in") === "true";
+              navigate(isStudent ? "/student/dashboard" : "/");
+            }} variant="outline" className="w-full">
+              {sessionStorage.getItem("student_logged_in") === "true" ? "Go to Dashboard" : "Return to Home"}
             </Button>
           </div>
         </motion.div>
@@ -536,8 +539,13 @@ const ExamPage = () => {
                 <Clock className="h-10 w-10 text-amber-600" />
               </div>
               <h1 className="text-2xl font-bold mb-2">Exam Completed</h1>
-              <p className="text-muted-foreground mb-6">Your answers have been submitted. Your teacher will send results via email.</p>
-              <Button type="button" onClick={() => navigate("/")} variant="outline">Back to Home</Button>
+              <p className="text-muted-foreground mb-6">Your answers have been submitted. You can view your results once the teacher publishes them.</p>
+              <Button type="button" onClick={() => {
+                const isStudent = sessionStorage.getItem("student_logged_in") === "true";
+                navigate(isStudent ? "/student/dashboard" : "/");
+              }} variant="outline">
+                {sessionStorage.getItem("student_logged_in") === "true" ? "Go to Dashboard" : "Back to Home"}
+              </Button>
             </CardContent>
           </Card>
         </motion.div>

@@ -243,13 +243,6 @@ const AdminDashboard = () => {
       await supabase.from("user_roles").delete().eq("user_id", teacherId);
       await supabase.from("profiles").delete().eq("id", teacherId);
 
-      // 3. Clean up database records (auth user deletion requires admin API)
-      // For now, just remove the role and profile to prevent access
-      await supabase.from("user_roles").delete().eq("user_id", teacherId);
-      await supabase.from("profiles").delete().eq("id", teacherId);
-      
-      // Note: The auth user will remain but cannot access the system without role/profile
-
       toast({ title: "Teacher deleted successfully.", description: "All data removed from the system." });
       await loadData();
     } catch (error: any) {
