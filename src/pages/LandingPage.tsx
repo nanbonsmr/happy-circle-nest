@@ -306,18 +306,14 @@ const LandingPage = () => {
             >
               <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight mb-6">
                 <span className="text-white block mb-2">
-                  Transform Your
+                  Grade 12 National Exam
                 </span>
                 <span className="relative inline-block">
-                  <span className="text-white">Exam</span>
                   <span className="relative mx-4">
                     <span className="bg-gradient-to-r from-yellow-400 to-green-400 text-purple-900 px-4 py-2 rounded-2xl font-black">
-                      Experience
+                      Preparation Platform
                     </span>
                   </span>
-                </span>
-                <span className="text-white block mt-2">
-                  With Smart Technology
                 </span>
               </h1>
 
