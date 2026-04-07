@@ -361,43 +361,6 @@ const LandingPage = () => {
                 </span>
               </div>
 
-              {/* School Cards */}
-              <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-                {schools.map((school, index) => (
-                  <motion.div
-                    key={school.name}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ 
-                      duration: 0.5, 
-                      delay: 0.8 + index * 0.1,
-                      type: "spring",
-                      stiffness: 100
-                    }}
-                    whileHover={{ 
-                      scale: 1.05,
-                      y: -5
-                    }}
-                    className="group cursor-pointer"
-                  >
-                    <div className="relative">
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-xl group-hover:border-white/40 transition-all duration-300">
-                        <img
-                          src={school.image}
-                          alt={school.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                      </div>
-                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 shadow-lg">
-                        <span className="text-xs font-semibold text-purple-900 whitespace-nowrap">
-                          {school.location}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
               {/* Trust Indicators */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
