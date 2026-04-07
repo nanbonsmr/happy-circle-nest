@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
+import { seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
 
 interface Question {
   id: string;
