@@ -146,6 +146,7 @@ const CreateExam = () => {
         toast({ title: "Access code changed", description: `Your access code was updated to ${code} to avoid a conflict.` });
       }
 
+      const seed = parseSeed(randomSeed);
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
         title: title.trim(),
@@ -155,6 +156,7 @@ const CreateExam = () => {
         status: isEditing ? examStatus : "published",
         max_participants: maxParticipants ? parseInt(maxParticipants) : null,
         security_level: securityLevel,
+        shuffle_seed: seed,
       };
 
       let exam: any = null;
