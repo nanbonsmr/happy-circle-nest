@@ -114,6 +114,7 @@ export type Database = {
           duration_minutes: number
           id: string
           max_participants: number | null
+          question_count: number
           results_published: boolean
           security_level: string
           shuffle_seed: number | null
@@ -131,6 +132,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          question_count?: number
           results_published?: boolean
           security_level?: string
           shuffle_seed?: number | null
@@ -148,6 +150,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           max_participants?: number | null
+          question_count?: number
           results_published?: boolean
           security_level?: string
           shuffle_seed?: number | null

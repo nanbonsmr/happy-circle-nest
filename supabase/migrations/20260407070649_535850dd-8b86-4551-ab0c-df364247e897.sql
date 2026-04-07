@@ -1,0 +1,1 @@
+ALTER TABLE public.exams ADD COLUMN question_count integer NOT NULL DEFAULT 0;
