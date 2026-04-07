@@ -33,7 +33,7 @@ const ExamReady = () => {
       // Use ilike for case-insensitive match + maybeSingle to avoid crash
       const { data: exam, error } = await supabase
         .from("exams")
-        .select("id, title, status, duration_minutes")
+        .select("id, title, status, duration_minutes, question_count")
         .ilike("access_code", accessCode || "")
         .maybeSingle();
 
@@ -46,13 +46,7 @@ const ExamReady = () => {
       setExamTitle(exam.title);
       setExamStatus(exam.status);
       setDuration(exam.duration_minutes);
-
-      // Fetch question count - use select without head to work around RLS
-      const { data: questionsData } = await supabase
-        .from("questions")
-        .select("id")
-        .eq("exam_id", exam.id);
-      setQuestionCount(questionsData?.length || 0);
+      setQuestionCount((exam as any).question_count || 0);
       setLoadingExam(false);
 
       // If already active, go straight to exam
@@ -85,29 +79,10 @@ const ExamReady = () => {
               }
               navigate(`/exam/${accessCode}/take`);
             } else if (newExam.title !== examTitle) {
-              // Exam details were updated
               setExamTitle(newExam.title);
               setDuration(newExam.duration_minutes);
-              
-              // Re-fetch question count in case questions were added/removed
-              const { data: questionsData } = await supabase
-                .from("questions")
-                .select("id")
-                .eq("exam_id", exam.id);
-              setQuestionCount(questionsData?.length || 0);
+              setQuestionCount(newExam.question_count || 0);
             }
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "questions", filter: `exam_id=eq.${exam.id}` },
-          async () => {
-            // Questions were added/removed/updated, refresh count
-            const { data: questionsData } = await supabase
-              .from("questions")
-              .select("id")
-              .eq("exam_id", exam.id);
-            setQuestionCount(questionsData?.length || 0);
           }
         )
         .subscribe();

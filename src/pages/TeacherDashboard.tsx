@@ -323,9 +323,21 @@ const TeacherDashboard = () => {
       // Update local state
       setExams(prev => prev.map(e => e.id === examId ? { ...e, results_published: true } : e));
 
+      // Also send email notifications via edge function
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await supabase.functions.invoke("send-exam-results", {
+            body: { examId },
+          });
+        }
+      } catch (emailErr) {
+        console.warn("Email sending failed (results still published):", emailErr);
+      }
+
       toast({ 
         title: "Results published!",
-        description: "Students can now view their results in their dashboard."
+        description: "Students can now view their results in their dashboard. Email notifications sent."
       });
     } catch (err: any) { 
       toast({ 

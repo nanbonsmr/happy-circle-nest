@@ -148,6 +148,7 @@ const CreateExam = () => {
       }
 
       const seed = parseSeed(randomSeed);
+      const totalQuestionCount = blocks.reduce((sum, b) => sum + b.questions.length, 0);
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
         title: title.trim(),
@@ -158,6 +159,7 @@ const CreateExam = () => {
         max_participants: maxParticipants ? parseInt(maxParticipants) : null,
         security_level: securityLevel,
         shuffle_seed: seed,
+        question_count: totalQuestionCount,
       };
 
       let exam: any = null;
