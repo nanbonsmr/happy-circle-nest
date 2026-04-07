@@ -289,7 +289,7 @@ const ExamPage = () => {
         // Load exam data
         const { data: exam } = await supabase
           .from("exams")
-          .select("id, title, duration_minutes, started_at, status, security_level, updated_at")
+          .select("id, title, duration_minutes, started_at, status, security_level, updated_at, shuffle_seed")
           .eq("access_code", accessCode || "")
           .maybeSingle();
 
