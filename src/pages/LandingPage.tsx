@@ -352,39 +352,189 @@ const LandingPage = () => {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
-              className="space-y-6"
+              className="space-y-8"
             >
-              <div className="flex items-center justify-center gap-2 text-white/70">
-                <MapPin className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  Launching in schools across Ethiopia and beyond
-                </span>
+              {/* Enhanced Header with Background */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-white/10 to-white/5 rounded-3xl blur-xl" />
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.8 }}
+                  className="relative bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-8 py-6 shadow-2xl"
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        animate={{ rotate: [0, 10, -10, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        className="p-2 bg-gradient-to-br from-yellow-400/20 to-green-400/20 rounded-full"
+                      >
+                        <MapPin className="h-5 w-5 text-yellow-300" />
+                      </motion.div>
+                      <h3 className="text-lg sm:text-xl font-bold text-white">
+                        Empowering Education Across Ethiopia
+                      </h3>
+                    </div>
+                    <p className="text-white/80 text-sm sm:text-base max-w-2xl leading-relaxed">
+                      Transforming Grade 12 exam preparation in schools nationwide with cutting-edge technology 
+                      and comprehensive learning solutions designed for Ethiopian students.
+                    </p>
+                  </div>
+                </motion.div>
               </div>
 
-              {/* Trust Indicators */}
+              {/* Enhanced Trust Indicators Grid */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 1.2 }}
-                className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/60 pt-8"
+                transition={{ duration: 0.8, delay: 1.0 }}
+                className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6"
               >
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
-                  <span>Free to use</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-blue-400" />
-                  <span>Secure & reliable</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Timer className="h-4 w-4 text-yellow-400" />
-                  <span>Real-time results</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-purple-400" />
-                  <span>Unlimited students</span>
-                </div>
+                {[
+                  { 
+                    icon: CheckCircle2, 
+                    text: "Free to Use", 
+                    color: "from-green-400 to-emerald-500",
+                    bgColor: "bg-green-400/10",
+                    description: "No hidden costs"
+                  },
+                  { 
+                    icon: ShieldCheck, 
+                    text: "Secure & Reliable", 
+                    color: "from-blue-400 to-cyan-500",
+                    bgColor: "bg-blue-400/10",
+                    description: "Bank-level security"
+                  },
+                  { 
+                    icon: Timer, 
+                    text: "Real-time Results", 
+                    color: "from-yellow-400 to-orange-500",
+                    bgColor: "bg-yellow-400/10",
+                    description: "Instant feedback"
+                  },
+                  { 
+                    icon: Users, 
+                    text: "All Grade 12 Subjects", 
+                    color: "from-purple-400 to-pink-500",
+                    bgColor: "bg-purple-400/10",
+                    description: "Complete coverage"
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={item.text}
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      delay: 1.2 + index * 0.1,
+                      type: "spring",
+                      stiffness: 100
+                    }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      y: -5
+                    }}
+                    className="group relative"
+                  >
+                    <div className="relative bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:bg-white/15">
+                      {/* Animated Background Glow */}
+                      <div className={`absolute inset-0 ${item.bgColor} rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl`} />
+                      
+                      {/* Content */}
+                      <div className="relative z-10 text-center space-y-3">
+                        <motion.div
+                          animate={{ 
+                            rotate: [0, 5, -5, 0],
+                            scale: [1, 1.1, 1]
+                          }}
+                          transition={{ 
+                            duration: 3, 
+                            repeat: Infinity, 
+                            ease: "easeInOut",
+                            delay: index * 0.5
+                          }}
+                          className={`inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br ${item.color} rounded-full shadow-lg group-hover:shadow-xl transition-shadow`}
+                        >
+                          <item.icon className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
+                        </motion.div>
+                        
+                        <div>
+                          <h4 className="font-bold text-white text-sm sm:text-base group-hover:text-yellow-300 transition-colors">
+                            {item.text}
+                          </h4>
+                          <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors mt-1">
+                            {item.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Decorative Corner Elements */}
+                      <div className="absolute top-2 right-2 w-2 h-2 bg-gradient-to-br from-white/20 to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute bottom-2 left-2 w-2 h-2 bg-gradient-to-br from-white/20 to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </motion.div>
+                ))}
               </motion.div>
+
+              {/* Additional Stats Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 1.6 }}
+                className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 pt-4"
+              >
+                {[
+                  { value: "8+", label: "Core Subjects", icon: BookOpen },
+                  { value: "1000+", label: "Practice Questions", icon: FileText },
+                  { value: "24/7", label: "Access Available", icon: Clock }
+                ].map((stat, index) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      delay: 1.8 + index * 0.1,
+                      type: "spring"
+                    }}
+                    className="flex items-center gap-3 text-white/70 hover:text-white transition-colors group"
+                  >
+                    <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
+                      <stat.icon className="h-4 w-4" />
+                    </div>
+                    <div className="text-center sm:text-left">
+                      <div className="font-bold text-lg text-white">{stat.value}</div>
+                      <div className="text-xs font-medium">{stat.label}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {/* Floating Particles Animation */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      y: [0, -20, 0],
+                      x: [0, Math.sin(i) * 10, 0],
+                      opacity: [0.3, 0.7, 0.3],
+                    }}
+                    transition={{
+                      duration: 4 + i,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: i * 0.5,
+                    }}
+                    className="absolute w-1 h-1 bg-white/40 rounded-full"
+                    style={{
+                      left: `${20 + i * 15}%`,
+                      top: `${30 + (i % 3) * 20}%`,
+                    }}
+                  />
+                ))}
+              </div>
             </motion.div>
           </div>
         </div>
