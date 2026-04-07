@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ExamBlockEditor, newBlock, type ExamBlock } from "@/components/ExamBlockEditor";
-import { parseSeed, seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
+import { parseSeed } from "@/lib/seededShuffle";
 
 const steps = ["Exam Details", "Add Questions", "Review & Publish"];
 
@@ -60,6 +60,7 @@ const CreateExam = () => {
         setAccessCode(exam.access_code);
         setSecurityLevel(((exam as any).security_level as "low" | "high") || "low");
         setExamStatus((exam.status as any) || "published");
+        if ((exam as any).shuffle_seed != null) setRandomSeed(String((exam as any).shuffle_seed));
 
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
@@ -146,6 +147,7 @@ const CreateExam = () => {
         toast({ title: "Access code changed", description: `Your access code was updated to ${code} to avoid a conflict.` });
       }
 
+      const seed = parseSeed(randomSeed);
       const insertPayload: Record<string, any> = {
         teacher_id: user.id,
         title: title.trim(),
@@ -155,6 +157,7 @@ const CreateExam = () => {
         status: isEditing ? examStatus : "published",
         max_participants: maxParticipants ? parseInt(maxParticipants) : null,
         security_level: securityLevel,
+        shuffle_seed: seed,
       };
 
       let exam: any = null;
@@ -200,64 +203,30 @@ const CreateExam = () => {
       }
       if (examError) throw examError;
 
-      // Flatten blocks into questions rows, applying seed-based shuffle if provided
+      // Flatten blocks into questions rows — store in ORIGINAL order
+      // Shuffling is applied dynamically when students take the exam
       let globalOrder = 0;
       const questionsToInsert: any[] = [];
-      const seed = parseSeed(randomSeed);
-      const hasSeed = seed !== null;
 
-      // Shuffle question order across all blocks if seed provided
-      let allBlockQuestions: { block: ExamBlock; qi: number; bi: number }[] = [];
       blocks.forEach((block, bi) => {
-        block.questions.forEach((_, qi) => {
-          allBlockQuestions.push({ block, qi, bi });
-        });
-      });
-      if (hasSeed) {
-        allBlockQuestions = seededShuffle(allBlockQuestions, seed!);
-      }
-
-      allBlockQuestions.forEach(({ block, qi, bi }) => {
-        const q = block.questions[qi];
-        let optA = q.options[0].trim();
-        let optB = q.options[1].trim();
-        let optC = q.options[2].trim();
-        let optD = q.options[3].trim();
-        let correctAnswer = q.correctAnswer;
-
-        // Shuffle answer options if seed provided
-        if (hasSeed) {
-          const opts = [
-            { key: "A", text: optA },
-            { key: "B", text: optB },
-            { key: "C", text: optC },
-            { key: "D", text: optD },
-          ];
-          // Use a per-question seed derived from main seed + question index
-          const { shuffled, newCorrectKey } = shuffleOptions(opts, correctAnswer, seed! + globalOrder);
-          optA = shuffled[0].text;
-          optB = shuffled[1].text;
-          optC = shuffled[2].text;
-          optD = shuffled[3].text;
-          correctAnswer = newCorrectKey;
-        }
-
-        questionsToInsert.push({
-          exam_id: exam.id,
-          question_text: q.text.trim(),
-          option_a: optA,
-          option_b: optB,
-          option_c: optC,
-          option_d: optD,
-          correct_answer: correctAnswer,
-          marks: 1,
-          question_order: globalOrder++,
-          block_id: block.id,
-          block_order: bi,
-          instructions: qi === 0 ? block.instructions || null : null,
-          paragraph: qi === 0 ? block.paragraph || null : null,
-          image_url: qi === 0 ? block.imageUrl || null : null,
-          image_caption: qi === 0 ? block.imageCaption || null : null,
+        block.questions.forEach((q, qi) => {
+          questionsToInsert.push({
+            exam_id: exam.id,
+            question_text: q.text.trim(),
+            option_a: q.options[0].trim(),
+            option_b: q.options[1].trim(),
+            option_c: q.options[2].trim(),
+            option_d: q.options[3].trim(),
+            correct_answer: q.correctAnswer,
+            marks: 1,
+            question_order: globalOrder++,
+            block_id: block.id,
+            block_order: bi,
+            instructions: qi === 0 ? block.instructions || null : null,
+            paragraph: qi === 0 ? block.paragraph || null : null,
+            image_url: qi === 0 ? block.imageUrl || null : null,
+            image_caption: qi === 0 ? block.imageCaption || null : null,
+          });
         });
       });
 

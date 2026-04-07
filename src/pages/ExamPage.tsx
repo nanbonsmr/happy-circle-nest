@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
+import { seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
 
 interface Question {
   id: string;
@@ -288,7 +289,7 @@ const ExamPage = () => {
         // Load exam data
         const { data: exam } = await supabase
           .from("exams")
-          .select("id, title, duration_minutes, started_at, status, security_level, updated_at")
+          .select("id, title, duration_minutes, started_at, status, security_level, updated_at, shuffle_seed")
           .eq("access_code", accessCode || "")
           .maybeSingle();
 
@@ -371,10 +372,64 @@ const ExamPage = () => {
         // Load questions
         const { data: qs } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
           .eq("exam_id", exam.id)
           .order("question_order");
-        setQuestions(qs || []);
+
+        let finalQuestions = qs || [];
+
+        // Apply per-block shuffle if seed is set
+        const shuffleSeed = (exam as any).shuffle_seed;
+        if (shuffleSeed != null && finalQuestions.length > 0) {
+          // Group questions by block_id
+          const blockGroups = new Map<string, typeof finalQuestions>();
+          const blockOrder: string[] = [];
+          finalQuestions.forEach((q: any) => {
+            const bid = q.block_id || "__default__";
+            if (!blockGroups.has(bid)) {
+              blockGroups.set(bid, []);
+              blockOrder.push(bid);
+            }
+            blockGroups.get(bid)!.push(q);
+          });
+
+          // Shuffle within each block and shuffle options
+          const shuffled: typeof finalQuestions = [];
+          blockOrder.forEach((bid, blockIdx) => {
+            const blockQs = blockGroups.get(bid)!;
+            const shuffledBlockQs = seededShuffle(blockQs, shuffleSeed + blockIdx);
+            
+            shuffledBlockQs.forEach((q: any, qIdx: number) => {
+              // Shuffle answer options per question
+              const opts = [
+                { key: "A", text: q.option_a },
+                { key: "B", text: q.option_b },
+                { key: "C", text: q.option_c },
+                { key: "D", text: q.option_d },
+              ];
+              const { shuffled: sOpts, newCorrectKey } = shuffleOptions(
+                opts, q.correct_answer, shuffleSeed + blockIdx * 1000 + qIdx
+              );
+              shuffled.push({
+                ...q,
+                option_a: sOpts[0].text,
+                option_b: sOpts[1].text,
+                option_c: sOpts[2].text,
+                option_d: sOpts[3].text,
+                correct_answer: newCorrectKey,
+                // Preserve block instructions only on the first question of each block
+                instructions: qIdx === 0 ? q.instructions || (blockQs[0] as any).instructions : null,
+                paragraph: qIdx === 0 ? q.paragraph || (blockQs[0] as any).paragraph : null,
+                image_url: qIdx === 0 ? q.image_url || (blockQs[0] as any).image_url : null,
+                image_caption: qIdx === 0 ? q.image_caption || (blockQs[0] as any).image_caption : null,
+              });
+            });
+          });
+
+          finalQuestions = shuffled;
+        }
+
+        setQuestions(finalQuestions as Question[]);
 
         // Load existing answers
         const { data: existingAnswers } = await supabase

@@ -116,6 +116,7 @@ export type Database = {
           max_participants: number | null
           results_published: boolean
           security_level: string
+          shuffle_seed: number | null
           started_at: string | null
           status: string
           subject: string
@@ -132,6 +133,7 @@ export type Database = {
           max_participants?: number | null
           results_published?: boolean
           security_level?: string
+          shuffle_seed?: number | null
           started_at?: string | null
           status?: string
           subject?: string
@@ -148,6 +150,7 @@ export type Database = {
           max_participants?: number | null
           results_published?: boolean
           security_level?: string
+          shuffle_seed?: number | null
           started_at?: string | null
           status?: string
           subject?: string
