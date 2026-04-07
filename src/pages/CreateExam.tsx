@@ -60,6 +60,7 @@ const CreateExam = () => {
         setAccessCode(exam.access_code);
         setSecurityLevel(((exam as any).security_level as "low" | "high") || "low");
         setExamStatus((exam.status as any) || "published");
+        if ((exam as any).shuffle_seed != null) setRandomSeed(String((exam as any).shuffle_seed));
 
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
