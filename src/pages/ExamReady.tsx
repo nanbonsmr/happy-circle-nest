@@ -79,16 +79,9 @@ const ExamReady = () => {
               }
               navigate(`/exam/${accessCode}/take`);
             } else if (newExam.title !== examTitle) {
-              // Exam details were updated
               setExamTitle(newExam.title);
               setDuration(newExam.duration_minutes);
-              
-              // Re-fetch question count in case questions were added/removed
-              const { data: questionsData } = await supabase
-                .from("questions")
-                .select("id")
-                .eq("exam_id", exam.id);
-              setQuestionCount(questionsData?.length || 0);
+              setQuestionCount(newExam.question_count || 0);
             }
           }
         )
