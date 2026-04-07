@@ -85,18 +85,6 @@ const ExamReady = () => {
             }
           }
         )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "questions", filter: `exam_id=eq.${exam.id}` },
-          async () => {
-            // Questions were added/removed/updated, refresh count
-            const { data: questionsData } = await supabase
-              .from("questions")
-              .select("id")
-              .eq("exam_id", exam.id);
-            setQuestionCount(questionsData?.length || 0);
-          }
-        )
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
