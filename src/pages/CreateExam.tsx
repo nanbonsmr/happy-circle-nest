@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ExamBlockEditor, newBlock, type ExamBlock } from "@/components/ExamBlockEditor";
-import { parseSeed, seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
+import { parseSeed } from "@/lib/seededShuffle";
 
 const steps = ["Exam Details", "Add Questions", "Review & Publish"];
 
