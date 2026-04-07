@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  Users, ShieldCheck, ArrowRight, Zap, BarChart3,
-  BookOpen, CheckCircle2, Menu, X, Clock, TrendingUp,
+  Users, ShieldCheck, ArrowRight, BarChart3,
+  BookOpen, CheckCircle2, Menu, X, TrendingUp,
   GraduationCap, Star, Globe, Smartphone, Monitor, Tablet,
-  Eye, Lock, Timer, Trophy, UserCheck, FileText, Brain,
-  Target, Sparkles, ChevronRight, Play, Pause, MapPin,
-  School, Building2, Home, Calculator, Atom, FlaskConical,
+  Timer, Trophy, UserCheck, FileText,
+  Target, Sparkles, ChevronRight, MapPin,
+  Calculator, Atom, FlaskConical,
   Microscope, MapIcon, DollarSign, Languages, Award
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -190,14 +190,10 @@ const content = {
   }
 };
 
-const LandingPage = () => {
-const LandingPage = () => {
-  const navigate = useNavigate();
+const const LandingPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [language, setLanguage] = useState<'en' | 'or'>('en');
   const [activeSubject, setActiveSubject] = useState(0);
-  const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
 
   const t = content[language];
 
