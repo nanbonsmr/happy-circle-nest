@@ -1,0 +1,67 @@
+config:
+  target: "https://aspbobpgiuiifhqbhiev.supabase.co"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      name: "Warm-up"
+    - duration: 60
+      arrivalRate: 20
+      name: "Ramp-up"
+    - duration: 120
+      arrivalRate: 50
+      name: "Sustained load"
+  defaults:
+    headers:
+      apikey: "{{ $processEnvironment.SUPABASE_ANON_KEY }}"
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Student fetches exam"
+    weight: 40
+    flow:
+      - get:
+          url: "/rest/v1/exams?status=eq.active&select=id,title,question_count,duration_minutes"
+          expect:
+            - statusCode: 200
+
+  - name: "Student joins exam session"
+    weight: 30
+    flow:
+      - get:
+          url: "/rest/v1/exams?status=eq.active&select=id&limit=1"
+          capture:
+            - json: "$[0].id"
+              as: "examId"
+      - post:
+          url: "/rest/v1/exam_sessions"
+          json:
+            exam_id: "{{ examId }}"
+            student_name: "Load Test Student"
+            student_email: "loadtest@test.com"
+          expect:
+            - statusCode:
+                - 201
+                - 409
+
+  - name: "Student submits answers"
+    weight: 20
+    flow:
+      - get:
+          url: "/rest/v1/exam_sessions?status=eq.in_progress&select=id&limit=1"
+          capture:
+            - json: "$[0].id"
+              as: "sessionId"
+      - think: 2
+      - patch:
+          url: "/rest/v1/exam_sessions?id=eq.{{ sessionId }}"
+          json:
+            status: "submitted"
+            submitted_at: "{{ $timestamp }}"
+
+  - name: "Teacher views results"
+    weight: 10
+    flow:
+      - get:
+          url: "/rest/v1/exam_sessions?select=id,score,total_marks,student_name&limit=50"
+          expect:
+            - statusCode: 200
