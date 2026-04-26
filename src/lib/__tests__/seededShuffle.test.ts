@@ -92,6 +92,38 @@ describe("pickVariantSeed", () => {
     expect(result.slice(0, 5).every((q) => q.startsWith("A"))).toBe(true);
     expect(result.slice(5).every((q) => q.startsWith("B"))).toBe(true);
   });
+
+  it("never crosses sections for ANY student across many variants", () => {
+    // Stress-test: with 3 sections and 50 students × 5 variant counts,
+    // every student's first N questions must belong to section 1, next M to
+    // section 2, etc. — no question may ever leak across a section boundary.
+    const sections = {
+      S1: ["S1-q1", "S1-q2", "S1-q3", "S1-q4"],
+      S2: ["S2-q1", "S2-q2", "S2-q3"],
+      S3: ["S3-q1", "S3-q2", "S3-q3", "S3-q4", "S3-q5"],
+    };
+    const sectionOrder = ["S1", "S2", "S3"] as const;
+
+    for (const variantCount of [2, 3, 4, 5, 8]) {
+      for (let i = 0; i < 50; i++) {
+        const seed = pickVariantSeed(variantCount, `student-${i}`)!;
+        const out: string[] = [];
+        sectionOrder.forEach((sid, idx) => {
+          out.push(...seededShuffle(sections[sid], seed + idx));
+        });
+
+        // Verify section boundaries are intact
+        let cursor = 0;
+        for (const sid of sectionOrder) {
+          const slice = out.slice(cursor, cursor + sections[sid].length);
+          expect(slice.every((q) => q.startsWith(sid))).toBe(true);
+          // Also verify no questions are dropped or duplicated within the section
+          expect([...slice].sort()).toEqual([...sections[sid]].sort());
+          cursor += sections[sid].length;
+        }
+      }
+    }
+  });
 });
 
 describe("shuffleOptions (legacy — options no longer shuffled in exam flow)", () => {
