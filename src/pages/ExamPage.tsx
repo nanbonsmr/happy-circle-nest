@@ -393,16 +393,28 @@ const ExamPage = () => {
         const variantSeed = pickVariantSeed(variantCount, studentIdentifier);
 
         if (variantSeed != null && finalQuestions.length > 0) {
-          // Group questions by block_id, preserving original block order
+          // Group questions by block_id. Track each block's authored
+          // position (block_order, then first question_order as tiebreaker)
+          // so sections always render in the teacher's intended sequence.
           const blockGroups = new Map<string, typeof finalQuestions>();
-          const blockOrder: string[] = [];
+          const blockMeta = new Map<string, { blockOrder: number; firstQOrder: number }>();
           finalQuestions.forEach((q: any) => {
             const bid = q.block_id || "__default__";
             if (!blockGroups.has(bid)) {
               blockGroups.set(bid, []);
-              blockOrder.push(bid);
+              blockMeta.set(bid, {
+                blockOrder: q.block_order ?? 0,
+                firstQOrder: q.question_order ?? 0,
+              });
             }
             blockGroups.get(bid)!.push(q);
+          });
+
+          // Sort sections by their authored order — never reorder sections.
+          const blockOrder = Array.from(blockGroups.keys()).sort((a, b) => {
+            const ma = blockMeta.get(a)!;
+            const mb = blockMeta.get(b)!;
+            return ma.blockOrder - mb.blockOrder || ma.firstQOrder - mb.firstQOrder;
           });
 
           // Shuffle questions within each block ONLY — sections never mix.
