@@ -21,6 +21,41 @@ export function parseSeed(seed: string): number | null {
 }
 
 /**
+ * Stable string hash (FNV-1a 32-bit). Used to derive a numeric index from
+ * a student identifier so the same student always gets the same variant.
+ */
+export function hashString(input: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Pick a deterministic variant seed for a given student.
+ *
+ * The teacher provides `variantCount` (e.g., 4) — the system generates that
+ * many distinct question-order variants. Students are distributed cyclically:
+ * student 1 → variant 0, student 2 → variant 1, ..., student N+1 → variant 0.
+ *
+ * `studentIdentifier` is hashed so the variant is stable per student
+ * (across reconnects/refreshes) but adjacent students typically differ.
+ *
+ * Returns null if randomization is disabled (variantCount <= 1).
+ */
+export function pickVariantSeed(
+  variantCount: number | null | undefined,
+  studentIdentifier: string
+): number | null {
+  if (!variantCount || variantCount <= 1) return null;
+  const idx = hashString(studentIdentifier || "anonymous") % variantCount;
+  // Spread variants across the seed space so they produce visibly different orders.
+  return (idx + 1) * 1000003;
+}
+
+/**
  * Shuffle an array deterministically using a numeric seed.
  * Returns a NEW array — does not mutate the original.
  */
