@@ -14,7 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
-import { seededShuffle, shuffleOptions } from "@/lib/seededShuffle";
+import { seededShuffle, pickVariantSeed } from "@/lib/seededShuffle";
 
 interface Question {
   id: string;
@@ -378,10 +378,22 @@ const ExamPage = () => {
 
         let finalQuestions = qs || [];
 
-        // Apply per-block shuffle if seed is set
-        const shuffleSeed = (exam as any).shuffle_seed;
-        if (shuffleSeed != null && finalQuestions.length > 0) {
-          // Group questions by block_id
+        // ─── Variant-based question randomization ───
+        // `shuffle_seed` on the exam is repurposed as the VARIANT COUNT
+        // (e.g., 4 → generate 4 distinct question orders, distribute cyclically).
+        // Answer options (A/B/C/D) are NEVER shuffled — order of questions only.
+        // Shuffling stays strictly within each section/block.
+        const variantCount = (exam as any).shuffle_seed as number | null;
+        // Stable per-student identifier so the same student always gets the same variant
+        // (survives reconnects). Falls back to session id for anonymous takers.
+        const studentIdentifier =
+          sessionStorage.getItem("student_db_id") ||
+          sessionStorage.getItem("student_id") ||
+          sid;
+        const variantSeed = pickVariantSeed(variantCount, studentIdentifier);
+
+        if (variantSeed != null && finalQuestions.length > 0) {
+          // Group questions by block_id, preserving original block order
           const blockGroups = new Map<string, typeof finalQuestions>();
           const blockOrder: string[] = [];
           finalQuestions.forEach((q: any) => {
@@ -393,31 +405,18 @@ const ExamPage = () => {
             blockGroups.get(bid)!.push(q);
           });
 
-          // Shuffle within each block and shuffle options
+          // Shuffle questions within each block ONLY — sections never mix.
           const shuffled: typeof finalQuestions = [];
           blockOrder.forEach((bid, blockIdx) => {
             const blockQs = blockGroups.get(bid)!;
-            const shuffledBlockQs = seededShuffle(blockQs, shuffleSeed + blockIdx);
-            
+            const shuffledBlockQs = seededShuffle(blockQs, variantSeed + blockIdx);
+
             shuffledBlockQs.forEach((q: any, qIdx: number) => {
-              // Shuffle answer options per question
-              const opts = [
-                { key: "A", text: q.option_a },
-                { key: "B", text: q.option_b },
-                { key: "C", text: q.option_c },
-                { key: "D", text: q.option_d },
-              ];
-              const { shuffled: sOpts, newCorrectKey } = shuffleOptions(
-                opts, q.correct_answer, shuffleSeed + blockIdx * 1000 + qIdx
-              );
               shuffled.push({
                 ...q,
-                option_a: sOpts[0].text,
-                option_b: sOpts[1].text,
-                option_c: sOpts[2].text,
-                option_d: sOpts[3].text,
-                correct_answer: newCorrectKey,
-                // Preserve block instructions only on the first question of each block
+                // Keep answer options exactly as authored — do NOT shuffle.
+                // Re-anchor block-level instructions/paragraph/image to the
+                // first question of the block after reshuffling.
                 instructions: qIdx === 0 ? q.instructions || (blockQs[0] as any).instructions : null,
                 paragraph: qIdx === 0 ? q.paragraph || (blockQs[0] as any).paragraph : null,
                 image_url: qIdx === 0 ? q.image_url || (blockQs[0] as any).image_url : null,
