@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Award, CheckCircle2, XCircle, Minus, Loader2, BarChart3 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Minus, Loader2, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
