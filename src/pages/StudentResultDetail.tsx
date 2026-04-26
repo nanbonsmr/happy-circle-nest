@@ -135,6 +135,42 @@ const StudentResultDetail = () => {
     return map[key] || key;
   };
 
+  const handleExport = () => {
+    if (!answers.length) return;
+    const studentName = sessionStorage.getItem("student_name") || "Student";
+    const studentIdCode = sessionStorage.getItem("student_id") || "";
+    const summary = [
+      ["Student Name", studentName],
+      ["Student ID", studentIdCode],
+      ["Exam", examTitle],
+      ["Subject", examSubject],
+      ["Score", `${score} / ${total}`],
+      ["Percentage", `${pct}%`],
+      ["Rank", rank ? `${rank} of ${totalStudents}` : "—"],
+      ["Correct", correct],
+      ["Incorrect", incorrect],
+      ["Unanswered", unanswered],
+      ["Submitted At", session?.submitted_at ? new Date(session.submitted_at).toLocaleString() : "—"],
+    ];
+    const breakdown = answers.map((a, i) => ({
+      "#": i + 1,
+      Question: a.questionText,
+      "Option A": a.optionA,
+      "Option B": a.optionB,
+      "Option C": a.optionC,
+      "Option D": a.optionD,
+      "Your Answer": a.selectedAnswer ?? "—",
+      "Correct Answer": a.correctAnswer,
+      Result: a.isCorrect === true ? "Correct" : a.isCorrect === false ? "Incorrect" : "Unanswered",
+      Marks: a.marks,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(breakdown), "Answers");
+    const safeTitle = examTitle.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
+    XLSX.writeFile(wb, `${safeTitle}_${studentName.replace(/\s+/g, "_")}.xlsx`);
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <header className="sticky top-0 z-50 bg-white border-b border-slate-100 shadow-sm">
@@ -143,12 +179,19 @@ const StudentResultDetail = () => {
             className="flex items-center gap-2 text-slate-600 hover:text-[#2563EB] text-sm font-medium transition-colors">
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
-          <div className="flex items-center gap-2">
-            <img src={logo} alt="" className="h-7 w-7 rounded-full" />
-            <span className="font-bold text-sm text-[#0f172a]">NejoExamPrep</span>
+          <div className="flex items-center gap-3">
+            <button onClick={handleExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2563EB] text-white text-xs font-semibold hover:bg-[#1d4ed8] transition-colors">
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            <div className="flex items-center gap-2">
+              <img src={logo} alt="" className="h-7 w-7 rounded-full" />
+              <span className="font-bold text-sm text-[#0f172a]">NejoExamPrep</span>
+            </div>
           </div>
         </div>
       </header>
+
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {/* Score card */}
