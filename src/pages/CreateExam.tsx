@@ -404,20 +404,21 @@ const CreateExam = () => {
                   </div>
                 </div>
 
-                {/* Randomization Seed */}
+                {/* Question Order Variants */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
-                    <Shuffle className="h-3.5 w-3.5" /> Randomization Seed (optional)
+                    <Shuffle className="h-3.5 w-3.5" /> Question Order Variants (optional)
                   </Label>
                   <Input
                     type="number"
-                    placeholder="e.g. 1234 — leave empty for no shuffle"
+                    placeholder="e.g. 4 — leave empty for no shuffle"
                     value={randomSeed}
                     onChange={(e) => setRandomSeed(e.target.value)}
-                    min="1"
+                    min="2"
+                    max="50"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter any number to shuffle question order and answer choices. Same seed = same shuffle every time.
+                    Enter how many distinct question orders to generate (e.g. <strong>4</strong> creates 4 versions A/B/C/D, distributed cyclically: student 1→A, 2→B, 3→C, 4→D, 5→A…). Questions only shuffle <strong>within their section</strong>; answer choices stay in original order.
                   </p>
                 </div>
 
