@@ -486,9 +486,9 @@ const CreateExam = () => {
                   <div className="col-span-2"><span className="text-muted-foreground">Access Code:</span> <strong className="font-mono">{accessCode}</strong></div>
                   {randomSeed.trim() && (
                     <div className="col-span-2 flex items-center gap-2">
-                      <span className="text-muted-foreground">Randomization Seed:</span>
+                      <span className="text-muted-foreground">Question Order Variants:</span>
                       <strong className="flex items-center gap-1 text-purple-600">
-                        <Shuffle className="h-3.5 w-3.5" /> {randomSeed}
+                        <Shuffle className="h-3.5 w-3.5" /> {randomSeed} versions (cyclic per student)
                       </strong>
                     </div>
                   )}
