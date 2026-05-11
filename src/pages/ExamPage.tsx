@@ -376,7 +376,7 @@ const ExamPage = () => {
         // Load questions
         const { data: qs } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .select("id, question_text, option_a, option_b, option_c, option_d, option_a_image, option_b_image, option_c_image, option_d_image, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
           .eq("exam_id", exam.id)
           .order("question_order");
 
