@@ -639,10 +639,10 @@ const ExamPage = () => {
 
   const q = questions[currentQuestion];
   const options = [
-    { key: "A", text: q.option_a },
-    { key: "B", text: q.option_b },
-    { key: "C", text: q.option_c },
-    { key: "D", text: q.option_d },
+    { key: "A", text: q.option_a, image: q.option_a_image },
+    { key: "B", text: q.option_b, image: q.option_b_image },
+    { key: "C", text: q.option_c, image: q.option_c_image },
+    { key: "D", text: q.option_d, image: q.option_d_image },
   ];
   const isTimeLow = timeLeft < 300;
   const totalViolations = totalViolationsRef.current;
