@@ -756,9 +756,15 @@ const ExamPage = () => {
                           }`}>
                             {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
                           </div>
-                          <div className="flex gap-2">
-                            <span className="font-medium text-gray-700">{opt.key}.</span>
-                            <span className="text-gray-700">{opt.text}</span>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex gap-2">
+                              <span className="font-medium text-gray-700">{opt.key}.</span>
+                              {opt.text && <span className="text-gray-700">{opt.text}</span>}
+                            </div>
+                            {opt.image && (
+                              <img src={opt.image} alt={`Option ${opt.key}`}
+                                className="max-h-32 object-contain rounded border border-gray-200 bg-white" />
+                            )}
                           </div>
                           <input
                             type="radio"
