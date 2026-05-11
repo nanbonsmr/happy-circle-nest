@@ -65,7 +65,7 @@ const CreateExam = () => {
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption, option_a_image, option_b_image, option_c_image, option_d_image")
           .eq("exam_id", examId)
           .order("question_order");
 
@@ -100,6 +100,12 @@ const CreateExam = () => {
                   q.option_b || "",
                   q.option_c || "",
                   q.option_d || "",
+                ],
+                optionImages: [
+                  q.option_a_image || "",
+                  q.option_b_image || "",
+                  q.option_c_image || "",
+                  q.option_d_image || "",
                 ],
                 correctAnswer: q.correct_answer || "",
               })),
