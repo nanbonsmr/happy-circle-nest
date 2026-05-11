@@ -365,6 +365,7 @@ const TeacherDashboard = () => {
         status: "published",
         max_participants: exam.max_participants,
         security_level: exam.security_level,
+        results_published: false,
       }).select().single();
       if (examErr) throw examErr;
       const { data: qs } = await supabase.from("questions").select("*").eq("exam_id", exam.id).order("question_order");
