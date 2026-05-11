@@ -23,6 +23,10 @@ interface Question {
   option_b: string;
   option_c: string;
   option_d: string;
+  option_a_image: string | null;
+  option_b_image: string | null;
+  option_c_image: string | null;
+  option_d_image: string | null;
   marks: number;
   question_order: number;
   block_id: string | null;
