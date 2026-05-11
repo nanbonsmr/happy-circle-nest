@@ -142,7 +142,7 @@ const CreateExam = () => {
       if (allQuestions.length === 0) throw new Error("Add at least one question");
       if (allQuestions.some((q) => !q.text.trim())) throw new Error("All questions must have text");
       if (allQuestions.some((q) => !q.correctAnswer)) throw new Error("All questions must have a correct answer");
-      if (allQuestions.some((q) => q.options.some((o) => !o.trim()))) throw new Error("All options must be filled");
+      if (allQuestions.some((q) => q.options.some((o, i) => !o.trim() && !(q.optionImages?.[i])))) throw new Error("Each option needs text or an image");
 
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
