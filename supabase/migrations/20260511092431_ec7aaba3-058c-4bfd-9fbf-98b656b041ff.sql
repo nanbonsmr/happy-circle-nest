@@ -1,0 +1,1 @@
+UPDATE public.exams SET results_published = false WHERE results_published = true;

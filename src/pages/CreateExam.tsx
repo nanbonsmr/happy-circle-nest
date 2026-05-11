@@ -178,9 +178,10 @@ const CreateExam = () => {
           insertPayload.started_at = new Date().toISOString();
         }
         
-        // Update existing exam
+        // Update existing exam — reset results_published so a re-used/recreated exam
+        // does not auto-show old results to students. Teacher must publish again.
         const { data, error } = await supabase.from("exams")
-          .update({ ...insertPayload, teacher_id: undefined } as any)
+          .update({ ...insertPayload, teacher_id: undefined, results_published: false } as any)
           .eq("id", examId).select().single();
         exam = data; examError = error;
         
