@@ -203,9 +203,13 @@ export type Database = {
           instructions: string | null
           marks: number
           option_a: string
+          option_a_image: string | null
           option_b: string
+          option_b_image: string | null
           option_c: string
+          option_c_image: string | null
           option_d: string
+          option_d_image: string | null
           paragraph: string | null
           question_order: number
           question_text: string
@@ -222,9 +226,13 @@ export type Database = {
           instructions?: string | null
           marks?: number
           option_a: string
+          option_a_image?: string | null
           option_b: string
+          option_b_image?: string | null
           option_c: string
+          option_c_image?: string | null
           option_d: string
+          option_d_image?: string | null
           paragraph?: string | null
           question_order?: number
           question_text: string
@@ -241,9 +249,13 @@ export type Database = {
           instructions?: string | null
           marks?: number
           option_a?: string
+          option_a_image?: string | null
           option_b?: string
+          option_b_image?: string | null
           option_c?: string
+          option_c_image?: string | null
           option_d?: string
+          option_d_image?: string | null
           paragraph?: string | null
           question_order?: number
           question_text?: string

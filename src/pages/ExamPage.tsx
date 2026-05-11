@@ -23,6 +23,10 @@ interface Question {
   option_b: string;
   option_c: string;
   option_d: string;
+  option_a_image: string | null;
+  option_b_image: string | null;
+  option_c_image: string | null;
+  option_d_image: string | null;
   marks: number;
   question_order: number;
   block_id: string | null;
@@ -372,7 +376,7 @@ const ExamPage = () => {
         // Load questions
         const { data: qs } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .select("id, question_text, option_a, option_b, option_c, option_d, option_a_image, option_b_image, option_c_image, option_d_image, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
           .eq("exam_id", exam.id)
           .order("question_order");
 
@@ -635,10 +639,10 @@ const ExamPage = () => {
 
   const q = questions[currentQuestion];
   const options = [
-    { key: "A", text: q.option_a },
-    { key: "B", text: q.option_b },
-    { key: "C", text: q.option_c },
-    { key: "D", text: q.option_d },
+    { key: "A", text: q.option_a, image: q.option_a_image },
+    { key: "B", text: q.option_b, image: q.option_b_image },
+    { key: "C", text: q.option_c, image: q.option_c_image },
+    { key: "D", text: q.option_d, image: q.option_d_image },
   ];
   const isTimeLow = timeLeft < 300;
   const totalViolations = totalViolationsRef.current;
@@ -752,9 +756,15 @@ const ExamPage = () => {
                           }`}>
                             {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
                           </div>
-                          <div className="flex gap-2">
-                            <span className="font-medium text-gray-700">{opt.key}.</span>
-                            <span className="text-gray-700">{opt.text}</span>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex gap-2">
+                              <span className="font-medium text-gray-700">{opt.key}.</span>
+                              {opt.text && <span className="text-gray-700">{opt.text}</span>}
+                            </div>
+                            {opt.image && (
+                              <img src={opt.image} alt={`Option ${opt.key}`}
+                                className="max-h-32 object-contain rounded border border-gray-200 bg-white" />
+                            )}
                           </div>
                           <input
                             type="radio"

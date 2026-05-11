@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Image as ImageIcon,
-  BookOpen, Info, X, Bold, Italic, Underline, List,
+  BookOpen, Info, X, Bold, Italic, Underline, List, Upload, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export interface BlockQuestion {
   id: string;
   text: string;
   options: string[];
+  optionImages: string[]; // image URL per option (A,B,C,D); empty string when no image
   correctAnswer: string;
 }
 
@@ -35,6 +38,7 @@ const newQuestion = (): BlockQuestion => ({
   id: String(Date.now() + Math.random()),
   text: "",
   options: ["", "", "", ""],
+  optionImages: ["", "", "", ""],
   correctAnswer: "",
 });
 
@@ -47,7 +51,20 @@ const newBlock = (): ExamBlock => ({
   questions: [newQuestion()],
 });
 
-// Minimal inline rich-text toolbar (applies markdown-style tags to textarea)
+// Upload a file to the public exam-images bucket and return its public URL
+const uploadExamImage = async (file: File): Promise<string> => {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from("exam-images").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("exam-images").getPublicUrl(path);
+  return data.publicUrl;
+};
+
 const RichToolbar = ({ onFormat }: { onFormat: (tag: string) => void }) => (
   <div className="flex items-center gap-1 p-1.5 bg-slate-50 border border-slate-200 rounded-t-lg border-b-0">
     <button type="button" onClick={() => onFormat("bold")}
@@ -70,10 +87,61 @@ const RichToolbar = ({ onFormat }: { onFormat: (tag: string) => void }) => (
   </div>
 );
 
+// Per-option image control: shows preview + upload button + remove
+const OptionImage = ({
+  url, onChange,
+}: { url: string; onChange: (next: string) => void }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+
+  const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Max 5 MB.", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const publicUrl = await uploadExamImage(file);
+      onChange(publicUrl);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
+    setBusy(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <div className="mt-1.5">
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handlePick} />
+      {url ? (
+        <div className="flex items-center gap-2">
+          <img src={url} alt="Option" className="h-12 w-12 object-cover rounded border border-slate-200" />
+          <button type="button" onClick={() => inputRef.current?.click()}
+            className="text-[11px] text-blue-600 hover:underline">Replace</button>
+          <button type="button" onClick={() => onChange("")}
+            className="text-[11px] text-red-500 hover:underline">Remove</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+          className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-[#1e3a5f]">
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+          {busy ? "Uploading..." : "Add image"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 export const ExamBlockEditor = ({ blocks, onChange }: Props) => {
   const [imageModal, setImageModal] = useState<{ blockId: string } | null>(null);
   const [tempImageUrl, setTempImageUrl] = useState("");
   const [tempCaption, setTempCaption] = useState("");
+  const [uploadingModal, setUploadingModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const updateBlock = (id: string, patch: Partial<ExamBlock>) => {
     onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
@@ -128,6 +196,22 @@ export const ExamBlockEditor = ({ blocks, onChange }: Props) => {
     ));
   };
 
+  const updateOptionImage = (blockId: string, qId: string, optIdx: number, url: string) => {
+    onChange(blocks.map((b) =>
+      b.id === blockId
+        ? {
+            ...b,
+            questions: b.questions.map((q) => {
+              if (q.id !== qId) return q;
+              const imgs = q.optionImages?.length === 4 ? [...q.optionImages] : ["", "", "", ""];
+              imgs[optIdx] = url;
+              return { ...q, optionImages: imgs };
+            }),
+          }
+        : b
+    ));
+  };
+
   const applyFormat = (blockId: string, field: "instructions" | "paragraph", tag: string) => {
     const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
@@ -145,6 +229,24 @@ export const ExamBlockEditor = ({ blocks, onChange }: Props) => {
     setTempImageUrl(block?.imageUrl || "");
     setTempCaption(block?.imageCaption || "");
     setImageModal({ blockId });
+  };
+
+  const handleModalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Max 5 MB.", variant: "destructive" });
+      return;
+    }
+    setUploadingModal(true);
+    try {
+      const url = await uploadExamImage(file);
+      setTempImageUrl(url);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
+    setUploadingModal(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const saveImage = () => {
@@ -280,6 +382,10 @@ export const ExamBlockEditor = ({ blocks, onChange }: Props) => {
                             onChange={(e) => updateOption(block.id, q.id, oi, e.target.value)}
                             className="h-9 text-sm"
                           />
+                          <OptionImage
+                            url={q.optionImages?.[oi] || ""}
+                            onChange={(url) => updateOptionImage(block.id, q.id, oi, url)}
+                          />
                         </div>
                       ))}
                     </div>
@@ -328,6 +434,32 @@ export const ExamBlockEditor = ({ blocks, onChange }: Props) => {
               </button>
             </div>
             <div className="space-y-3">
+              <div>
+                <Label className="text-sm">Upload from device</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleModalUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingModal}
+                  className="mt-1 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-sm text-slate-600 hover:border-[#1e3a5f]/50 hover:text-[#1e3a5f] disabled:opacity-50"
+                >
+                  {uploadingModal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {uploadingModal ? "Uploading..." : "Choose file (max 5 MB)"}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">or paste URL</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+
               <div>
                 <Label className="text-sm">Image URL</Label>
                 <Input

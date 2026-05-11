@@ -65,7 +65,7 @@ const CreateExam = () => {
         // Load questions and rebuild blocks
         const { data: qs } = await supabase
           .from("questions")
-          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption")
+          .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order, block_id, block_order, instructions, paragraph, image_url, image_caption, option_a_image, option_b_image, option_c_image, option_d_image")
           .eq("exam_id", examId)
           .order("question_order");
 
@@ -100,6 +100,12 @@ const CreateExam = () => {
                   q.option_b || "",
                   q.option_c || "",
                   q.option_d || "",
+                ],
+                optionImages: [
+                  q.option_a_image || "",
+                  q.option_b_image || "",
+                  q.option_c_image || "",
+                  q.option_d_image || "",
                 ],
                 correctAnswer: q.correct_answer || "",
               })),
@@ -136,7 +142,7 @@ const CreateExam = () => {
       if (allQuestions.length === 0) throw new Error("Add at least one question");
       if (allQuestions.some((q) => !q.text.trim())) throw new Error("All questions must have text");
       if (allQuestions.some((q) => !q.correctAnswer)) throw new Error("All questions must have a correct answer");
-      if (allQuestions.some((q) => q.options.some((o) => !o.trim()))) throw new Error("All options must be filled");
+      if (allQuestions.some((q) => q.options.some((o, i) => !o.trim() && !(q.optionImages?.[i])))) throw new Error("Each option needs text or an image");
 
       let code = accessCode;
       const { data: existing } = await supabase.from("exams").select("id").eq("access_code", code).maybeSingle();
@@ -220,6 +226,10 @@ const CreateExam = () => {
             option_b: q.options[1].trim(),
             option_c: q.options[2].trim(),
             option_d: q.options[3].trim(),
+            option_a_image: q.optionImages?.[0] || null,
+            option_b_image: q.optionImages?.[1] || null,
+            option_c_image: q.optionImages?.[2] || null,
+            option_d_image: q.optionImages?.[3] || null,
             correct_answer: q.correctAnswer,
             marks: 1,
             question_order: globalOrder++,
