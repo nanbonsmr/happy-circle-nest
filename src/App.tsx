@@ -15,6 +15,7 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import CreateExam from "./pages/CreateExam";
+import PreviewExam from "./pages/PreviewExam";
 import StudentLogin from "./pages/StudentLogin";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentResultDetail from "./pages/StudentResultDetail";
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/teacher/create" element={<CreateExam />} />
           <Route path="/teacher/edit/:examId" element={<CreateExam />} />
+          <Route path="/teacher/preview" element={<PreviewExam />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="*" element={<NotFound />} />
