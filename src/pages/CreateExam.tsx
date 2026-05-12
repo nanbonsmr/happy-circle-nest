@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Users,
-  ShieldCheck, ShieldAlert, Shuffle,
+  ShieldCheck, ShieldAlert, Shuffle, Eye, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
