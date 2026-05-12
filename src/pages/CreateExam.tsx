@@ -597,19 +597,38 @@ const CreateExam = () => {
         )}
 
         {/* Navigation */}
-        <div className="flex justify-between mt-8">
+        <div className="flex flex-wrap justify-between gap-2 mt-8">
           <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={step === 0} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          {step < 2 ? (
-            <Button onClick={() => setStep((s) => s + 1)} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
-              Next <ArrowRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={handlePublish} disabled={saving} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
-              {saving ? (isEditing ? "Saving..." : "Publishing...") : <><Check className="h-4 w-4" /> {isEditing ? "Save Changes" : "Publish Exam"}</>}
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {/* Preview Exam — available on Add Questions and Review steps */}
+            {step >= 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePreview}
+                disabled={previewing || saving}
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                title="Open the student exam interface in preview mode"
+              >
+                {previewing ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving latest changes…</>
+                ) : (
+                  <><Eye className="h-4 w-4" /> Preview Exam</>
+                )}
+              </Button>
+            )}
+            {step < 2 ? (
+              <Button onClick={() => setStep((s) => s + 1)} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
+                Next <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={handlePublish} disabled={saving} className="gap-2 gradient-primary border-0 text-primary-foreground hover:opacity-90">
+                {saving ? (isEditing ? "Saving..." : "Publishing...") : <><Check className="h-4 w-4" /> {isEditing ? "Save Changes" : "Publish Exam"}</>}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
