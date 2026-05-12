@@ -15,6 +15,7 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import CreateExam from "./pages/CreateExam";
+import PreviewExam from "./pages/PreviewExam";
 import StudentLogin from "./pages/StudentLogin";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentResultDetail from "./pages/StudentResultDetail";
