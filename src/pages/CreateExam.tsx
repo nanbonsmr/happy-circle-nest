@@ -23,6 +23,7 @@ const CreateExam = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [loadingExam, setLoadingExam] = useState(isEditing);
 
   // Step 1
