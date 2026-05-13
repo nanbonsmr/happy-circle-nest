@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, AlertCircle, Loader2,
-  ShieldAlert, XCircle, AlertTriangle,
+  ShieldAlert, XCircle, AlertTriangle, Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -145,6 +145,8 @@ const ExamPage = () => {
     return isNaN(saved) ? 0 : saved;
   });
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
+  const [visited, setVisited] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
