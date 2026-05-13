@@ -852,23 +852,51 @@ const ExamPage = () => {
 
             {/* Question navigation grid */}
             <div className="flex-1">
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] text-gray-600 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-white border border-gray-300" /> Not visited
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-white border-2 border-gray-500 shadow-sm" /> Visited
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-green-600" /> Answered
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="relative h-3 w-3 rounded bg-white border border-gray-300 overflow-hidden">
+                    <span className="absolute top-0 right-0 h-0 w-0 border-t-[6px] border-l-[6px] border-t-red-500 border-l-transparent" />
+                  </span> Flagged
+                </div>
+              </div>
+
               <div className="grid grid-cols-5 gap-2 mb-6">
-                {questions.map((qu: Question, i: number) => (
-                  <button
-                    key={qu.id}
-                    type="button"
-                    onClick={() => setCurrentQuestion(i)}
-                    className={`h-8 w-8 text-xs font-medium rounded transition-all ${
-                      i === currentQuestion
-                        ? "bg-blue-600 text-white"
-                        : answers[qu.id]
-                        ? "bg-green-100 text-green-700 border border-green-300"
-                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200"
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
+                {questions.map((qu: Question, i: number) => {
+                  const isAnswered = !!answers[qu.id];
+                  const isVisited = !!visited[qu.id];
+                  const isFlagged = !!flagged[qu.id];
+                  const isCurrent = i === currentQuestion;
+
+                  let cls = "bg-white text-gray-600 border border-gray-300";
+                  if (isAnswered) cls = "bg-green-600 text-white border border-green-700";
+                  else if (isVisited) cls = "bg-white text-gray-700 border-2 border-gray-500 shadow-sm";
+
+                  return (
+                    <button
+                      key={qu.id}
+                      type="button"
+                      onClick={() => setCurrentQuestion(i)}
+                      className={`relative h-8 w-8 text-xs font-medium rounded transition-all overflow-hidden ${cls} ${
+                        isCurrent ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-105"
+                      }`}
+                    >
+                      {i + 1}
+                      {isFlagged && (
+                        <span className="absolute top-0 right-0 h-0 w-0 border-t-[10px] border-l-[10px] border-t-red-500 border-l-transparent" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
