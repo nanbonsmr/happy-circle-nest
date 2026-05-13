@@ -749,20 +749,37 @@ const ExamPage = () => {
 
                 {/* Question */}
                 <div className="mb-6">
-                  <div className="flex items-start gap-2 mb-4">
-                    <span className="text-sm font-medium text-gray-500 mt-1">
-                      {currentQuestion + 1}.
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-base text-gray-800 font-medium mb-1">
-                        {q.question_text}
-                      </p>
-                      {q.marks > 1 && (
-                        <span className="text-xs text-blue-600 font-medium">
-                          ({q.marks} marks)
-                        </span>
-                      )}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-500 mt-1">
+                        {currentQuestion + 1}.
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-base text-gray-800 font-medium mb-1">
+                          {q.question_text}
+                        </p>
+                        {q.marks > 1 && (
+                          <span className="text-xs text-blue-600 font-medium">
+                            ({q.marks} marks)
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFlagged((p) => ({ ...p, [q.id]: !p[q.id] }))
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all border ${
+                        flagged[q.id]
+                          ? "bg-red-50 border-red-300 text-red-700"
+                          : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                      }`}
+                      title="Mark this question for review"
+                    >
+                      <Flag className="h-3.5 w-3.5" />
+                      {flagged[q.id] ? "Flagged" : "Flag for review"}
+                    </button>
                   </div>
 
                   {/* Answer options */}
