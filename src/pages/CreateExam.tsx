@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Users,
-  ShieldCheck, ShieldAlert, Shuffle, Eye, Loader2,
+  ShieldCheck, ShieldAlert, Shuffle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ const CreateExam = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
+  
   const [loadingExam, setLoadingExam] = useState(isEditing);
 
   // Step 1
@@ -130,33 +130,7 @@ const CreateExam = () => {
     return `${ts}-${rand}`.slice(0, 10);
   };
 
-  const handlePreview = async () => {
-    setPreviewing(true);
-    try {
-      const allQuestions = blocks.flatMap((b) => b.questions);
-      if (allQuestions.length === 0) {
-        toast({ title: "Add at least one question to preview", variant: "destructive" });
-        return;
-      }
 
-      // Brief "saving latest changes" UX (snapshot is in-memory, not persisted to DB)
-      await new Promise((r) => setTimeout(r, 350));
-
-      const snapshot = {
-        title: title.trim() || "Untitled Exam",
-        subject: subject.trim(),
-        duration_minutes: parseInt(duration) || 30,
-        blocks,
-        returnTo: isEditing && examId ? `/teacher/edit/${examId}` : "/teacher/create",
-      };
-      sessionStorage.setItem("exam_preview_snapshot", JSON.stringify(snapshot));
-      // Clear any prior preview state so a fresh attempt begins
-      sessionStorage.removeItem("exam_preview_state");
-      navigate("/teacher/preview");
-    } finally {
-      setPreviewing(false);
-    }
-  };
 
   const handlePublish = async () => {
     setSaving(true);
