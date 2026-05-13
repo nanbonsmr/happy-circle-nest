@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, AlertCircle, Loader2,
-  ShieldAlert, XCircle, AlertTriangle,
+  ShieldAlert, XCircle, AlertTriangle, Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -145,6 +145,8 @@ const ExamPage = () => {
     return isNaN(saved) ? 0 : saved;
   });
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [flagged, setFlagged] = useState<Record<string, boolean>>({});
+  const [visited, setVisited] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -548,6 +550,28 @@ const ExamPage = () => {
     if (sid) sessionStorage.setItem(`q_pos_${sid}`, String(currentQuestion));
   }, [currentQuestion]);
 
+  // Mark current question as visited
+  useEffect(() => {
+    const q = questions[currentQuestion];
+    if (!q) return;
+    setVisited((prev) => (prev[q.id] ? prev : { ...prev, [q.id]: true }));
+  }, [currentQuestion, questions]);
+
+  // Restore flagged state per session
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const raw = sessionStorage.getItem(`flagged_${sessionId}`);
+      if (raw) setFlagged(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, [sessionId]);
+
+  // Persist flagged whenever it changes
+  useEffect(() => {
+    if (!sessionId) return;
+    sessionStorage.setItem(`flagged_${sessionId}`, JSON.stringify(flagged));
+  }, [flagged, sessionId]);
+
   const saveAnswer = useCallback(async (questionId: string, selectedAnswer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
     const sid = sessionStorage.getItem("session_id");
@@ -725,20 +749,37 @@ const ExamPage = () => {
 
                 {/* Question */}
                 <div className="mb-6">
-                  <div className="flex items-start gap-2 mb-4">
-                    <span className="text-sm font-medium text-gray-500 mt-1">
-                      {currentQuestion + 1}.
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-base text-gray-800 font-medium mb-1">
-                        {q.question_text}
-                      </p>
-                      {q.marks > 1 && (
-                        <span className="text-xs text-blue-600 font-medium">
-                          ({q.marks} marks)
-                        </span>
-                      )}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-500 mt-1">
+                        {currentQuestion + 1}.
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-base text-gray-800 font-medium mb-1">
+                          {q.question_text}
+                        </p>
+                        {q.marks > 1 && (
+                          <span className="text-xs text-blue-600 font-medium">
+                            ({q.marks} marks)
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFlagged((p) => ({ ...p, [q.id]: !p[q.id] }))
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all border ${
+                        flagged[q.id]
+                          ? "bg-red-50 border-red-300 text-red-700"
+                          : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                      }`}
+                      title="Mark this question for review"
+                    >
+                      <Flag className="h-3.5 w-3.5" />
+                      {flagged[q.id] ? "Flagged" : "Flag for review"}
+                    </button>
                   </div>
 
                   {/* Answer options */}
@@ -811,23 +852,51 @@ const ExamPage = () => {
 
             {/* Question navigation grid */}
             <div className="flex-1">
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] text-gray-600 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-white border border-gray-300" /> Not visited
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-white border-2 border-gray-500 shadow-sm" /> Visited
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-green-600" /> Answered
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="relative h-3 w-3 rounded bg-white border border-gray-300 overflow-hidden">
+                    <span className="absolute top-0 right-0 h-0 w-0 border-t-[6px] border-l-[6px] border-t-red-500 border-l-transparent" />
+                  </span> Flagged
+                </div>
+              </div>
+
               <div className="grid grid-cols-5 gap-2 mb-6">
-                {questions.map((qu: Question, i: number) => (
-                  <button
-                    key={qu.id}
-                    type="button"
-                    onClick={() => setCurrentQuestion(i)}
-                    className={`h-8 w-8 text-xs font-medium rounded transition-all ${
-                      i === currentQuestion
-                        ? "bg-blue-600 text-white"
-                        : answers[qu.id]
-                        ? "bg-green-100 text-green-700 border border-green-300"
-                        : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200"
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
+                {questions.map((qu: Question, i: number) => {
+                  const isAnswered = !!answers[qu.id];
+                  const isVisited = !!visited[qu.id];
+                  const isFlagged = !!flagged[qu.id];
+                  const isCurrent = i === currentQuestion;
+
+                  let cls = "bg-white text-gray-600 border border-gray-300";
+                  if (isAnswered) cls = "bg-green-600 text-white border border-green-700";
+                  else if (isVisited) cls = "bg-white text-gray-700 border-2 border-gray-500 shadow-sm";
+
+                  return (
+                    <button
+                      key={qu.id}
+                      type="button"
+                      onClick={() => setCurrentQuestion(i)}
+                      className={`relative h-8 w-8 text-xs font-medium rounded transition-all overflow-hidden ${cls} ${
+                        isCurrent ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-105"
+                      }`}
+                    >
+                      {i + 1}
+                      {isFlagged && (
+                        <span className="absolute top-0 right-0 h-0 w-0 border-t-[10px] border-l-[10px] border-t-red-500 border-l-transparent" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
