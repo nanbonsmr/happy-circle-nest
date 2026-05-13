@@ -550,6 +550,28 @@ const ExamPage = () => {
     if (sid) sessionStorage.setItem(`q_pos_${sid}`, String(currentQuestion));
   }, [currentQuestion]);
 
+  // Mark current question as visited
+  useEffect(() => {
+    const q = questions[currentQuestion];
+    if (!q) return;
+    setVisited((prev) => (prev[q.id] ? prev : { ...prev, [q.id]: true }));
+  }, [currentQuestion, questions]);
+
+  // Restore flagged state per session
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const raw = sessionStorage.getItem(`flagged_${sessionId}`);
+      if (raw) setFlagged(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, [sessionId]);
+
+  // Persist flagged whenever it changes
+  useEffect(() => {
+    if (!sessionId) return;
+    sessionStorage.setItem(`flagged_${sessionId}`, JSON.stringify(flagged));
+  }, [flagged, sessionId]);
+
   const saveAnswer = useCallback(async (questionId: string, selectedAnswer: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
     const sid = sessionStorage.getItem("session_id");
