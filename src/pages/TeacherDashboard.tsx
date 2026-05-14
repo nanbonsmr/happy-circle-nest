@@ -594,8 +594,12 @@ const TeacherDashboard = () => {
                               <button type="button" onClick={async () => {
                                 const newVal = !(exam as any).results_published;
                                 await supabase.from("exams").update({ results_published: newVal } as any).eq("id", exam.id);
+                                if (newVal) {
+                                  // Snapshot + per-session publish for sessions not yet published
+                                  await publishPendingSessionResults(exam.id);
+                                }
                                 setExams(prev => prev.map(e => e.id === exam.id ? { ...e, results_published: newVal } as any : e));
-                                toast({ title: newVal ? "Results published to students" : "Results hidden from students" });
+                                toast({ title: newVal ? "Results published (only new submissions affected)" : "Auto-publish disabled. Already-published results stay visible." });
                               }} className={`p-1.5 rounded-lg ${(exam as any).results_published ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`} title={`${(exam as any).results_published ? 'Hide' : 'Publish'} results for students`}>
                                 <Eye className="h-3.5 w-3.5" />
                               </button>
