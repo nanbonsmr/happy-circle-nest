@@ -74,17 +74,17 @@ const StudentDashboard = () => {
 
       
 
-      // Get exam sessions for this student
+      // Get exam sessions for this student — per-session result publication
       const { data: sessions } = await (supabase
         .from("exam_sessions")
-        .select("id, exam_id, score, total_marks, status, submitted_at") as any)
+        .select("id, exam_id, score, total_marks, status, submitted_at, result_published_at") as any)
         .eq("student_registry_id", studentDbId);
 
       if (sessions?.length) {
         const examIds = [...new Set(sessions.map((s: any) => s.exam_id))];
         const { data: exams } = await supabase
           .from("exams")
-          .select("id, title, subject, results_published")
+          .select("id, title, subject")
           .in("id", examIds as string[]);
 
         const examMap = new Map(exams?.map((e: any) => [e.id, e]) || []);
@@ -99,7 +99,7 @@ const StudentDashboard = () => {
             totalMarks: s.total_marks,
             status: s.status,
             submittedAt: s.submitted_at,
-            resultsPublished: exam.results_published || false,
+            resultsPublished: !!s.result_published_at,
           };
         });
         setResults(resultRows);
@@ -119,38 +119,29 @@ const StudentDashboard = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Real-time subscription for exam updates (results_published changes)
+  // Real-time subscription for per-session result publication
   useEffect(() => {
     if (!studentDbId) return;
 
     const channel = supabase
-      .channel('student-exam-updates')
+      .channel('student-session-updates')
       .on(
         'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'exams',
-          filter: 'results_published=eq.true'
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'exam_sessions',
+          filter: `student_registry_id=eq.${studentDbId}`,
         },
         async (payload) => {
-          // When an exam's results are published, refresh the results
-          const updatedExam = payload.new as any;
-          
-          // Check if this student has a session for this exam
-          const { data: studentSession } = await supabase
-            .from("exam_sessions")
-            .select("id")
-            .eq("student_registry_id", studentDbId)
-            .eq("exam_id", updatedExam.id)
-            .maybeSingle();
-
-          if (studentSession) {
-            // Reload data to show the newly published results
+          const updated = payload.new as any;
+          const previous = payload.old as any;
+          // Only react when result_published_at transitions from null to a value
+          if (updated?.result_published_at && !previous?.result_published_at) {
             loadData();
             toast({
               title: "New Results Available!",
-              description: `Results for "${updatedExam.title}" have been published.`,
+              description: "Your exam result has been published.",
             });
           }
         }

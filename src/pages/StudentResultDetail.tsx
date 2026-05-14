@@ -40,59 +40,60 @@ const StudentResultDetail = () => {
   const loadResult = async () => {
     if (!sessionId) return;
     try {
-      // Get session
-      const { data: sess } = await supabase
+      // Get session — includes per-session publication flag
+      const { data: sess } = await (supabase
         .from("exam_sessions")
-        .select("*")
+        .select("*, result_published_at") as any)
         .eq("id", sessionId)
         .single();
       if (!sess) { navigate("/student/dashboard"); return; }
       setSession(sess);
 
-      // Check if results are published
+      // Per-session gate: only show if THIS student's result was published
+      if (!sess.result_published_at) { navigate("/student/dashboard"); return; }
+
       const { data: exam } = await supabase
         .from("exams")
-        .select("title, subject, results_published")
+        .select("title, subject")
         .eq("id", sess.exam_id)
         .single();
-      if (!exam?.results_published) { navigate("/student/dashboard"); return; }
-      setExamTitle(exam.title);
-      setExamSubject(exam.subject || "");
+      setExamTitle(exam?.title || "");
+      setExamSubject(exam?.subject || "");
 
-      // Get answers with questions
-      const { data: studentAnswers } = await supabase
+      // Get answers — prefer snapshot fields (frozen at publish time)
+      const { data: studentAnswers } = await (supabase
         .from("student_answers")
-        .select("question_id, selected_answer, is_correct")
+        .select("question_id, selected_answer, is_correct, question_text, option_a, option_b, option_c, option_d, correct_answer, marks, question_order") as any)
         .eq("session_id", sessionId);
 
       if (studentAnswers?.length) {
-        const qIds = studentAnswers.map(a => a.question_id);
-        const { data: questions } = await supabase
-          .from("questions")
-          .select("id, question_text, correct_answer, marks, option_a, option_b, option_c, option_d, question_order")
-          .in("id", qIds)
-          .order("question_order");
+        // Fall back to live questions only when snapshot missing (legacy rows)
+        const missingSnap = studentAnswers.filter((a: any) => !a.question_text);
+        let liveMap = new Map<string, any>();
+        if (missingSnap.length) {
+          const { data: questions } = await supabase
+            .from("questions")
+            .select("id, question_text, correct_answer, marks, option_a, option_b, option_c, option_d, question_order")
+            .in("id", missingSnap.map((a: any) => a.question_id));
+          liveMap = new Map(questions?.map((q: any) => [q.id, q]) || []);
+        }
 
-        const qMap = new Map(questions?.map(q => [q.id, q]) || []);
-        const details: AnswerDetail[] = studentAnswers.map(a => {
-          const q: any = qMap.get(a.question_id) || {};
+        const details: AnswerDetail[] = studentAnswers.map((a: any) => {
+          const live: any = liveMap.get(a.question_id) || {};
           return {
             questionId: a.question_id,
-            questionText: q.question_text || "",
+            questionText: a.question_text ?? live.question_text ?? "",
             selectedAnswer: a.selected_answer,
-            correctAnswer: q.correct_answer || "",
+            correctAnswer: a.correct_answer ?? live.correct_answer ?? "",
             isCorrect: a.is_correct,
-            marks: q.marks || 0,
-            optionA: q.option_a || "",
-            optionB: q.option_b || "",
-            optionC: q.option_c || "",
-            optionD: q.option_d || "",
-          };
-        }).sort((a, b) => {
-          const qa = questions?.find(q => q.id === a.questionId);
-          const qb = questions?.find(q => q.id === b.questionId);
-          return (qa?.question_order || 0) - (qb?.question_order || 0);
-        });
+            marks: a.marks ?? live.marks ?? 0,
+            optionA: a.option_a ?? live.option_a ?? "",
+            optionB: a.option_b ?? live.option_b ?? "",
+            optionC: a.option_c ?? live.option_c ?? "",
+            optionD: a.option_d ?? live.option_d ?? "",
+            _order: a.question_order ?? live.question_order ?? 0,
+          } as any;
+        }).sort((a: any, b: any) => (a._order || 0) - (b._order || 0));
         setAnswers(details);
       }
 

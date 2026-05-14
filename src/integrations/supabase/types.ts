@@ -52,6 +52,8 @@ export type Database = {
           ejected_by_violation: boolean
           exam_id: string
           id: string
+          result_email_sent_at: string | null
+          result_published_at: string | null
           score: number | null
           started_at: string | null
           status: string
@@ -66,6 +68,8 @@ export type Database = {
           ejected_by_violation?: boolean
           exam_id: string
           id?: string
+          result_email_sent_at?: string | null
+          result_published_at?: string | null
           score?: number | null
           started_at?: string | null
           status?: string
@@ -80,6 +84,8 @@ export type Database = {
           ejected_by_violation?: boolean
           exam_id?: string
           id?: string
+          result_email_sent_at?: string | null
+          result_published_at?: string | null
           score?: number | null
           started_at?: string | null
           status?: string
@@ -272,26 +278,62 @@ export type Database = {
       }
       student_answers: {
         Row: {
+          correct_answer: string | null
           created_at: string
           id: string
           is_correct: boolean | null
+          marks: number | null
+          option_a: string | null
+          option_a_image: string | null
+          option_b: string | null
+          option_b_image: string | null
+          option_c: string | null
+          option_c_image: string | null
+          option_d: string | null
+          option_d_image: string | null
           question_id: string
+          question_order: number | null
+          question_text: string | null
           selected_answer: string | null
           session_id: string
         }
         Insert: {
+          correct_answer?: string | null
           created_at?: string
           id?: string
           is_correct?: boolean | null
+          marks?: number | null
+          option_a?: string | null
+          option_a_image?: string | null
+          option_b?: string | null
+          option_b_image?: string | null
+          option_c?: string | null
+          option_c_image?: string | null
+          option_d?: string | null
+          option_d_image?: string | null
           question_id: string
+          question_order?: number | null
+          question_text?: string | null
           selected_answer?: string | null
           session_id: string
         }
         Update: {
+          correct_answer?: string | null
           created_at?: string
           id?: string
           is_correct?: boolean | null
+          marks?: number | null
+          option_a?: string | null
+          option_a_image?: string | null
+          option_b?: string | null
+          option_b_image?: string | null
+          option_c?: string | null
+          option_c_image?: string | null
+          option_d?: string | null
+          option_d_image?: string | null
           question_id?: string
+          question_order?: number | null
+          question_text?: string | null
           selected_answer?: string | null
           session_id?: string
         }

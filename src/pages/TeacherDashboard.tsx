@@ -312,42 +312,88 @@ const TeacherDashboard = () => {
   const handleSendResults = async (examId: string) => {
     setSendingId(examId);
     try {
-      // Toggle results_published to true
+      // 1. Mark exam as having results published (auto-publish flag for any future submissions you also publish)
       const { error } = await supabase
         .from("exams")
         .update({ results_published: true })
         .eq("id", examId);
-
       if (error) throw error;
 
-      // Update local state
+      // 2. Snapshot + per-session publish for all submitted sessions not yet published
+      await publishPendingSessionResults(examId);
+
       setExams(prev => prev.map(e => e.id === examId ? { ...e, results_published: true } : e));
 
-      // Also send email notifications via edge function
+      // 3. Send emails (edge function only sends to sessions not yet emailed)
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
-          await supabase.functions.invoke("send-exam-results", {
-            body: { examId },
-          });
+          await supabase.functions.invoke("send-exam-results", { body: { examId } });
         }
       } catch (emailErr) {
         console.warn("Email sending failed (results still published):", emailErr);
       }
 
-      toast({ 
+      toast({
         title: "Results published!",
-        description: "Students can now view their results in their dashboard. Email notifications sent."
+        description: "New students received results. Previously published students were not changed.",
       });
-    } catch (err: any) { 
-      toast({ 
-        title: "Failed to publish results", 
-        description: err.message, 
-        variant: "destructive" 
-      }); 
+    } catch (err: any) {
+      toast({ title: "Failed to publish results", description: err.message, variant: "destructive" });
     }
     setSendingId(null);
   };
+
+  // Snapshot question content into student_answers and set result_published_at — never overwrites already-published sessions
+  const publishPendingSessionResults = async (examId: string) => {
+    const { data: pending } = await (supabase
+      .from("exam_sessions")
+      .select("id, result_published_at, status") as any)
+      .eq("exam_id", examId)
+      .eq("status", "submitted")
+      .is("result_published_at", null);
+
+    if (!pending || pending.length === 0) return;
+
+    // Load current questions once
+    const { data: questions } = await supabase
+      .from("questions")
+      .select("id, question_text, option_a, option_b, option_c, option_d, option_a_image, option_b_image, option_c_image, option_d_image, correct_answer, marks, question_order")
+      .eq("exam_id", examId);
+    const qMap = new Map((questions || []).map((q: any) => [q.id, q]));
+
+    for (const sess of pending) {
+      // Snapshot answers for this session (only rows missing snapshot)
+      const { data: answers } = await (supabase
+        .from("student_answers")
+        .select("id, question_id, question_text") as any)
+        .eq("session_id", sess.id);
+
+      for (const a of (answers || [])) {
+        if (a.question_text) continue;
+        const q: any = qMap.get(a.question_id);
+        if (!q) continue;
+        await (supabase.from("student_answers") as any)
+          .update({
+            question_text: q.question_text,
+            option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+            option_a_image: q.option_a_image, option_b_image: q.option_b_image,
+            option_c_image: q.option_c_image, option_d_image: q.option_d_image,
+            correct_answer: q.correct_answer,
+            marks: q.marks,
+            question_order: q.question_order,
+          })
+          .eq("id", a.id);
+      }
+
+      // Mark session published (frozen)
+      await (supabase.from("exam_sessions") as any)
+        .update({ result_published_at: new Date().toISOString() })
+        .eq("id", sess.id)
+        .is("result_published_at", null);
+    }
+  };
+
 
   const handleCloneExam = async (exam: Exam) => {
     setCloningId(exam.id);
@@ -548,8 +594,12 @@ const TeacherDashboard = () => {
                               <button type="button" onClick={async () => {
                                 const newVal = !(exam as any).results_published;
                                 await supabase.from("exams").update({ results_published: newVal } as any).eq("id", exam.id);
+                                if (newVal) {
+                                  // Snapshot + per-session publish for sessions not yet published
+                                  await publishPendingSessionResults(exam.id);
+                                }
                                 setExams(prev => prev.map(e => e.id === exam.id ? { ...e, results_published: newVal } as any : e));
-                                toast({ title: newVal ? "Results published to students" : "Results hidden from students" });
+                                toast({ title: newVal ? "Results published (only new submissions affected)" : "Auto-publish disabled. Already-published results stay visible." });
                               }} className={`p-1.5 rounded-lg ${(exam as any).results_published ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`} title={`${(exam as any).results_published ? 'Hide' : 'Publish'} results for students`}>
                                 <Eye className="h-3.5 w-3.5" />
                               </button>
