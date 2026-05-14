@@ -74,17 +74,17 @@ const StudentDashboard = () => {
 
       
 
-      // Get exam sessions for this student
+      // Get exam sessions for this student — per-session result publication
       const { data: sessions } = await (supabase
         .from("exam_sessions")
-        .select("id, exam_id, score, total_marks, status, submitted_at") as any)
+        .select("id, exam_id, score, total_marks, status, submitted_at, result_published_at") as any)
         .eq("student_registry_id", studentDbId);
 
       if (sessions?.length) {
         const examIds = [...new Set(sessions.map((s: any) => s.exam_id))];
         const { data: exams } = await supabase
           .from("exams")
-          .select("id, title, subject, results_published")
+          .select("id, title, subject")
           .in("id", examIds as string[]);
 
         const examMap = new Map(exams?.map((e: any) => [e.id, e]) || []);
@@ -99,7 +99,7 @@ const StudentDashboard = () => {
             totalMarks: s.total_marks,
             status: s.status,
             submittedAt: s.submitted_at,
-            resultsPublished: exam.results_published || false,
+            resultsPublished: !!s.result_published_at,
           };
         });
         setResults(resultRows);
