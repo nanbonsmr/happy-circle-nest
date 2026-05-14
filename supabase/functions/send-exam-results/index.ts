@@ -71,15 +71,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get all submitted sessions
+    // Get submitted sessions that have been individually published but not yet emailed
     const { data: sessions } = await supabaseAdmin
       .from("exam_sessions")
       .select("*")
       .eq("exam_id", examId)
-      .eq("status", "submitted");
+      .eq("status", "submitted")
+      .not("result_published_at", "is", null)
+      .is("result_email_sent_at", null);
 
     if (!sessions || sessions.length === 0) {
-      return new Response(JSON.stringify({ error: "No submitted sessions found", sent: 0 }), {
+      return new Response(JSON.stringify({ message: "No new results to send", sent: 0 }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
