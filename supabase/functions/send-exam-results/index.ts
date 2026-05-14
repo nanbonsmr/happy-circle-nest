@@ -193,6 +193,11 @@ Deno.serve(async (req) => {
           errors.push(`Failed for ${session.student_email}: [${response.status}] ${responseBody}`);
         } else {
           sentCount++;
+          // Mark this session as emailed so re-publishing won't re-send to this student
+          await supabaseAdmin
+            .from("exam_sessions")
+            .update({ result_email_sent_at: new Date().toISOString() })
+            .eq("id", session.id);
         }
       } catch (e: any) {
         console.error(`Exception for ${session.student_email}:`, e.message);
