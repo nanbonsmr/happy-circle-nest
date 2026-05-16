@@ -494,6 +494,10 @@ const AdminDashboard = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
               <Download className="h-3.5 w-3.5" /> Export
             </button>
+            <button type="button" onClick={() => setConfirmDeleteAll(true)} disabled={!sortedResults.length || bulkDeleting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-40 transition-colors">
+              {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete All
+            </button>
           </div>
         ) : undefined
       }
