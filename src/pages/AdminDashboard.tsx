@@ -757,6 +757,7 @@ const AdminDashboard = () => {
                     </th>
                     <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-left px-4 py-3 font-semibold">Submitted</th>
+                    <th className="text-center px-4 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -791,6 +792,18 @@ const AdminDashboard = () => {
                         </td>
                         <td className="px-4 py-3.5 text-xs text-slate-500">
                           {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSession(r.id)}
+                            disabled={deletingSessionId === r.id}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            title="Delete session"
+                            aria-label="Delete session"
+                          >
+                            {deletingSessionId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </button>
                         </td>
                       </tr>
                     );
