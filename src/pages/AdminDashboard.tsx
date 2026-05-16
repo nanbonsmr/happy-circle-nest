@@ -57,6 +57,45 @@ const AdminDashboard = () => {
   const [sortAsc, setSortAsc] = useState(false);
   const [resultSearch, setResultSearch] = useState("");
   const [resultExamFilter, setResultExamFilter] = useState("all");
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const handleDeleteSession = async (sessionId: string) => {
+    setDeletingSessionId(sessionId);
+    try {
+      await supabase.from("student_answers").delete().eq("session_id", sessionId);
+      await supabase.from("cheat_logs").delete().eq("session_id", sessionId);
+      const { error } = await supabase.from("exam_sessions").delete().eq("id", sessionId);
+      if (error) throw error;
+      setResults((prev) => prev.filter((r) => r.id !== sessionId));
+      setTotalStudents((n) => Math.max(0, n - 1));
+      toast({ title: "Session deleted" });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
+    setDeletingSessionId(null);
+  };
+
+  const handleDeleteAllSessions = async () => {
+    setBulkDeleting(true);
+    try {
+      // Delete only the currently filtered/visible rows
+      const ids = sortedResults.map((r) => r.id);
+      if (ids.length === 0) return;
+      await supabase.from("student_answers").delete().in("session_id", ids);
+      await supabase.from("cheat_logs").delete().in("session_id", ids);
+      const { error } = await supabase.from("exam_sessions").delete().in("id", ids);
+      if (error) throw error;
+      setResults((prev) => prev.filter((r) => !ids.includes(r.id)));
+      setTotalStudents((n) => Math.max(0, n - ids.length));
+      toast({ title: `${ids.length} session(s) deleted` });
+    } catch (err: any) {
+      toast({ title: "Bulk delete failed", description: err.message, variant: "destructive" });
+    }
+    setBulkDeleting(false);
+    setConfirmDeleteAll(false);
+  };
   // Students
   const [students, setStudents] = useState<any[]>([]);
   const [showStudentDialog, setShowStudentDialog] = useState(false);
@@ -455,6 +494,10 @@ const AdminDashboard = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-40 transition-colors">
               <Download className="h-3.5 w-3.5" /> Export
             </button>
+            <button type="button" onClick={() => setConfirmDeleteAll(true)} disabled={!sortedResults.length || bulkDeleting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-40 transition-colors">
+              {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete All
+            </button>
           </div>
         ) : undefined
       }
@@ -718,6 +761,7 @@ const AdminDashboard = () => {
                     </th>
                     <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-left px-4 py-3 font-semibold">Submitted</th>
+                    <th className="text-center px-4 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -752,6 +796,18 @@ const AdminDashboard = () => {
                         </td>
                         <td className="px-4 py-3.5 text-xs text-slate-500">
                           {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSession(r.id)}
+                            disabled={deletingSessionId === r.id}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            title="Delete session"
+                            aria-label="Delete session"
+                          >
+                            {deletingSessionId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -933,6 +989,22 @@ const AdminDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={confirmDeleteAll} onOpenChange={(o) => !o && setConfirmDeleteAll(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all visible sessions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes {sortedResults.length} session(s) along with their answers and cheat logs. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAllSessions} disabled={bulkDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {bulkDeleting ? "Deleting…" : "Delete All"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
