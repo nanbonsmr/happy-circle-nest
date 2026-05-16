@@ -57,6 +57,45 @@ const AdminDashboard = () => {
   const [sortAsc, setSortAsc] = useState(false);
   const [resultSearch, setResultSearch] = useState("");
   const [resultExamFilter, setResultExamFilter] = useState("all");
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const handleDeleteSession = async (sessionId: string) => {
+    setDeletingSessionId(sessionId);
+    try {
+      await supabase.from("student_answers").delete().eq("session_id", sessionId);
+      await supabase.from("cheat_logs").delete().eq("session_id", sessionId);
+      const { error } = await supabase.from("exam_sessions").delete().eq("id", sessionId);
+      if (error) throw error;
+      setResults((prev) => prev.filter((r) => r.id !== sessionId));
+      setTotalStudents((n) => Math.max(0, n - 1));
+      toast({ title: "Session deleted" });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
+    setDeletingSessionId(null);
+  };
+
+  const handleDeleteAllSessions = async () => {
+    setBulkDeleting(true);
+    try {
+      // Delete only the currently filtered/visible rows
+      const ids = sortedResults.map((r) => r.id);
+      if (ids.length === 0) return;
+      await supabase.from("student_answers").delete().in("session_id", ids);
+      await supabase.from("cheat_logs").delete().in("session_id", ids);
+      const { error } = await supabase.from("exam_sessions").delete().in("id", ids);
+      if (error) throw error;
+      setResults((prev) => prev.filter((r) => !ids.includes(r.id)));
+      setTotalStudents((n) => Math.max(0, n - ids.length));
+      toast({ title: `${ids.length} session(s) deleted` });
+    } catch (err: any) {
+      toast({ title: "Bulk delete failed", description: err.message, variant: "destructive" });
+    }
+    setBulkDeleting(false);
+    setConfirmDeleteAll(false);
+  };
   // Students
   const [students, setStudents] = useState<any[]>([]);
   const [showStudentDialog, setShowStudentDialog] = useState(false);
