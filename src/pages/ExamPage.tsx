@@ -742,8 +742,8 @@ const ExamPage = () => {
                 {/* Instructions/Paragraph */}
                 {(q.instructions || q.paragraph) && (
                   <div className="mb-6 text-sm text-gray-600 leading-relaxed">
-                    {q.instructions && <p className="mb-3">{q.instructions}</p>}
-                    {q.paragraph && <p>{q.paragraph}</p>}
+                    {q.instructions && <p className="mb-3 whitespace-pre-wrap">{q.instructions}</p>}
+                    {q.paragraph && <p className="whitespace-pre-wrap">{q.paragraph}</p>}
                   </div>
                 )}
 
