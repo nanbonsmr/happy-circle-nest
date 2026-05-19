@@ -742,8 +742,8 @@ const ExamPage = () => {
                 {/* Instructions/Paragraph */}
                 {(q.instructions || q.paragraph) && (
                   <div className="mb-6 text-sm text-gray-600 leading-relaxed">
-                    {q.instructions && <p className="mb-3">{q.instructions}</p>}
-                    {q.paragraph && <p>{q.paragraph}</p>}
+                    {q.instructions && <p className="mb-3 whitespace-pre-wrap">{q.instructions}</p>}
+                    {q.paragraph && <p className="whitespace-pre-wrap">{q.paragraph}</p>}
                   </div>
                 )}
 
@@ -755,7 +755,7 @@ const ExamPage = () => {
                         {currentQuestion + 1}.
                       </span>
                       <div className="flex-1">
-                        <p className="text-base text-gray-800 font-medium mb-1">
+                        <p className="text-base text-gray-800 font-medium mb-1 whitespace-pre-wrap">
                           {q.question_text}
                         </p>
                         {q.marks > 1 && (
