@@ -782,6 +782,17 @@ const ExamPage = () => {
                     </button>
                   </div>
 
+                  {/* Image if present - shown above options */}
+                  {q.image_url && (
+                    <div className="mb-6">
+                      <img src={q.image_url} alt={q.image_caption || "Exam image"}
+                        className="max-w-full h-auto border border-gray-200 rounded" />
+                      {q.image_caption && (
+                        <p className="text-xs text-gray-500 mt-2 italic">{q.image_caption}</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Answer options */}
                   <div className="space-y-3">
                     {options.map((opt) => {
@@ -822,16 +833,6 @@ const ExamPage = () => {
                   </div>
                 </div>
 
-                {/* Image if present */}
-                {q.image_url && (
-                  <div className="mb-6">
-                    <img src={q.image_url} alt={q.image_caption || "Exam image"}
-                      className="max-w-full h-auto border border-gray-200 rounded" />
-                    {q.image_caption && (
-                      <p className="text-xs text-gray-500 mt-2 italic">{q.image_caption}</p>
-                    )}
-                  </div>
-                )}
               </motion.div>
             </AnimatePresence>
           </div>
