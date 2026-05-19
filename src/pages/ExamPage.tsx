@@ -755,7 +755,7 @@ const ExamPage = () => {
                         {currentQuestion + 1}.
                       </span>
                       <div className="flex-1">
-                        <p className="text-base text-gray-800 font-medium mb-1">
+                        <p className="text-base text-gray-800 font-medium mb-1 whitespace-pre-wrap">
                           {q.question_text}
                         </p>
                         {q.marks > 1 && (
