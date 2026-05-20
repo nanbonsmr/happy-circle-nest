@@ -576,11 +576,20 @@ const ExamPage = () => {
     setAnswers((prev) => ({ ...prev, [questionId]: selectedAnswer }));
     const sid = sessionStorage.getItem("session_id");
     if (!sid) return;
-    await supabase.from("student_answers").upsert(
+    const { error } = await supabase.from("student_answers").upsert(
       { session_id: sid, question_id: questionId, selected_answer: selectedAnswer },
       { onConflict: "session_id,question_id" }
     );
-  }, []);
+    if (error) {
+      console.error("Failed to save answer:", error);
+      toast({
+        title: "Answer not saved",
+        description: "Please check your connection and re-select this answer.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);

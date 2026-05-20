@@ -181,28 +181,46 @@ const CreateExam = () => {
           .select("status, started_at")
           .eq("id", examId)
           .single();
-        
-        // If exam is currently active, reset the start time to restart the timer
+
+        // SAFETY: If this exam already has any sessions (students have started or
+        // submitted), we MUST NOT delete & recreate questions — doing so cascades
+        // and permanently wipes every student answer (ON DELETE CASCADE on the FK).
+        // In that case only update metadata, never touch questions.
+        const { count: sessionCount } = await supabase
+          .from("exam_sessions")
+          .select("id", { count: "exact", head: true })
+          .eq("exam_id", examId);
+        const hasSessions = (sessionCount ?? 0) > 0;
+
         if (currentExam?.status === "active") {
           insertPayload.started_at = new Date().toISOString();
         }
-        
-        // Update existing exam — reset results_published so a re-used/recreated exam
-        // does not auto-show old results to students. Teacher must publish again.
+
         const { data, error } = await supabase.from("exams")
           .update({ ...insertPayload, teacher_id: undefined, results_published: false } as any)
           .eq("id", examId).select().single();
         exam = data; examError = error;
-        
-        // Delete old questions before reinserting
-        if (!examError) await supabase.from("questions").delete().eq("exam_id", examId);
-        
-        // Show appropriate message
-        if (!examError && currentExam?.status === "active") {
-          toast({ 
-            title: "Exam Updated!", 
-            description: "Timer has been restarted. Students can continue with the updated exam." 
-          });
+
+        if (hasSessions) {
+          // Skip question rewrite to preserve student answers.
+          if (!examError) {
+            toast({
+              title: "Exam metadata updated",
+              description: "Questions were NOT changed because students have already started or submitted this exam. To change questions, create a new exam.",
+              duration: 8000,
+            });
+            navigate("/teacher");
+            return;
+          }
+        } else {
+          // No sessions yet — safe to fully rebuild questions
+          if (!examError) await supabase.from("questions").delete().eq("exam_id", examId);
+          if (!examError && currentExam?.status === "active") {
+            toast({
+              title: "Exam Updated!",
+              description: "Timer has been restarted. Students can continue with the updated exam."
+            });
+          }
         }
       } else {
         const result = await supabase.from("exams").insert(insertPayload as any).select().single();
@@ -248,6 +266,7 @@ const CreateExam = () => {
 
       const { error: qError } = await supabase.from("questions").insert(questionsToInsert);
       if (qError) throw qError;
+
 
       // Only show generic success message if we haven't already shown a custom one for active exams
       if (!isEditing || examStatus !== "active") {
