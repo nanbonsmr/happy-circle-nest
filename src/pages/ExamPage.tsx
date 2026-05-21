@@ -170,7 +170,13 @@ const ExamPage = () => {
         }
 
         // Calculate time remaining
-        const startedAt = exam.started_at ? new Date(exam.started_at).getTime() : Date.now();
+        if (!exam.started_at) {
+          // Can't calculate time without a start time — treat as ended
+          setExamEnded(true);
+          setLoading(false);
+          return;
+        }
+        const startedAt = new Date(exam.started_at).getTime();
         const endTime = startedAt + exam.duration_minutes * 60 * 1000;
         const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
         
@@ -378,7 +384,9 @@ const ExamPage = () => {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [loading, handleSubmit, timeLeft, examEnded]);
+    // intentionally exclude timeLeft — adding it would restart the interval every second
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, handleSubmit, examEnded]);
 
   // Persist current question position so it survives reconnect
   useEffect(() => {
@@ -428,8 +436,12 @@ const ExamPage = () => {
 
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
+    if (h > 0) {
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
@@ -637,9 +649,7 @@ const ExamPage = () => {
                 isTimeLow ? "border-red-300 bg-red-50 text-red-700" : "border-gray-300 bg-gray-50 text-gray-700"
               }`}>
                 <Clock className="h-4 w-4" />
-                {Math.floor(timeLeft / 3600).toString().padStart(2, '0')}:
-                {Math.floor((timeLeft % 3600) / 60).toString().padStart(2, '0')}:
-                {(timeLeft % 60).toString().padStart(2, '0')}
+                {formatTime(timeLeft)}
               </div>
             </div>
 
