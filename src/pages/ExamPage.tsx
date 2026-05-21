@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Clock, AlertCircle, Loader2,
-  ShieldAlert, XCircle, AlertTriangle, Flag,
+  Clock, AlertCircle, Loader2, Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +12,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useCheatPrevention, type CheatEventType, type SecurityLevel } from "@/hooks/useCheatPrevention";
 import { seededShuffle, pickVariantSeed } from "@/lib/seededShuffle";
 
 interface Question {
@@ -37,101 +35,6 @@ interface Question {
   image_caption: string | null;
 }
 
-const MAX_VIOLATIONS = 5;
-
-const EVENT_LABELS: Record<CheatEventType, string> = {
-  tab_switch: "Tab switching detected",
-  fullscreen_exit: "Attempting to exit exam screen",
-  copy_attempt: "Copying content",
-  paste_attempt: "Pasting content",
-  devtools_open: "Opening DevTools",
-  inactivity: "Long inactivity",
-  window_resize: "Resizing the window",
-};
-
-const CheatWarningOverlay = ({
-  event, totalViolations, onDismiss, onEject,
-}: {
-  event: CheatEventType;
-  totalViolations: number;
-  onDismiss: () => void;
-  onEject: () => void;
-}) => {
-  const triesLeft = MAX_VIOLATIONS - totalViolations;
-  const isFinalWarning = totalViolations === MAX_VIOLATIONS;
-  const isEjected = totalViolations > MAX_VIOLATIONS;
-
-  useEffect(() => {
-    if (isEjected) {
-      const t = setTimeout(onEject, 5000);
-      return () => clearTimeout(t);
-    }
-  }, [isEjected, onEject]);
-
-  if (isEjected) {
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-red-950/95 p-4">
-        <motion.div initial={{ scale: 0.85 }} animate={{ scale: 1 }}
-          className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-8 text-center">
-          <div className="mx-auto mb-5 h-16 w-16 rounded-full bg-red-100 flex items-center justify-center">
-            <XCircle className="h-9 w-9 text-red-600" />
-          </div>
-          <h3 className="text-xl font-extrabold text-red-700 mb-2">Removed from Exam</h3>
-          <p className="text-slate-600 text-sm mb-2">You have been removed due to repeated violations.</p>
-          <p className="text-xs text-slate-400 mb-6">Your answers have been submitted and your teacher has been notified.</p>
-          <div className="text-xs text-slate-400">Redirecting in 5 seconds…</div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (isFinalWarning) {
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-orange-950/80 p-4">
-        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-          className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center">
-            <AlertTriangle className="h-7 w-7 text-orange-600" />
-          </div>
-          <h3 className="text-lg font-extrabold text-orange-700 mb-1">⚠️ Final Warning!</h3>
-          <p className="text-slate-700 text-sm font-medium mb-2">{EVENT_LABELS[event]}</p>
-          <p className="text-slate-600 text-sm mb-4">
-            You have used all your chances.{" "}
-            <span className="font-bold text-red-600">One more violation and you will be permanently removed.</span>
-          </p>
-          <p className="text-xs text-slate-400 mb-5">Violation #{totalViolations} — this is your last warning.</p>
-          <Button type="button" onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()} onClick={onDismiss}
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold">
-            I Understand — Return to Exam
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
-        <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center">
-          <ShieldAlert className="h-7 w-7 text-amber-600" />
-        </div>
-        <h3 className="text-lg font-bold text-[#0f172a] mb-1">Warning #{totalViolations}</h3>
-        <p className="text-slate-700 text-sm font-medium mb-2">{EVENT_LABELS[event]}</p>
-        <p className="text-slate-600 text-sm mb-1">This has been logged and reported to your teacher.</p>
-        <p className="text-sm font-semibold text-amber-700 mb-5">
-          You have{" "}
-          <span className="text-red-600">{triesLeft} {triesLeft === 1 ? "try" : "tries"} left</span>{" "}
-          before you are removed from this exam.
-        </p>
-        <Button type="button" onMouseDown={(e: { preventDefault: () => void }) => e.preventDefault()} onClick={onDismiss}
-          className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl">
-          OK — Return to Exam
-        </Button>
-      </motion.div>
-    </div>
-  );
-};
 
 const ExamPage = () => {
   const { accessCode } = useParams();
@@ -155,20 +58,13 @@ const ExamPage = () => {
   const [examTitle, setExamTitle] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [examEnded, setExamEnded] = useState(false);
-  const [ejected, setEjected] = useState(false);
-  const [securityLevel, setSecurityLevel] = useState<SecurityLevel>("low");
-  
+
   // Student data states
   const [studentName, setStudentName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [studentData, setStudentData] = useState<any>(null);
 
-  const totalViolationsRef = useRef(0);
-  const warningOpenRef = useRef(false);
-  const [activeWarning, setActiveWarning] = useState<{ event: CheatEventType; total: number } | null>(null);
-  const [fullscreenReady] = useState(true); // No gate screen — CSS overlay handles visual fullscreen
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [ejectedByViolation, setEjectedByViolation] = useState(false);
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (submitting) return;
@@ -210,12 +106,7 @@ const ExamPage = () => {
 
       if (isAutoSubmit) { setExamEnded(true); }
       else {
-        // Clean up violation counter on successful submit
-        const sid2 = sessionStorage.getItem("session_id") || sessionId;
-        if (sid2) {
-          localStorage.removeItem(`violations_${sid2}`);
-          sessionStorage.removeItem(`q_pos_${sid2}`);
-        }
+        sessionStorage.removeItem(`q_pos_${sid}`);
         navigate(`/exam/${accessCode}/complete`);
       }
     } catch (error: any) {
@@ -224,69 +115,15 @@ const ExamPage = () => {
     }
   }, [submitting, sessionId, examId, answers, questions, navigate, accessCode, toast]);
 
-  const handleEject = useCallback(async () => {
-    warningOpenRef.current = false;
-    const sid = sessionStorage.getItem("session_id") || sessionId;
-
-    // Zero out the score and mark as ejected by violation
-    if (sid) {
-      await supabase.from("exam_sessions").update({
-        status: "submitted",
-        submitted_at: new Date().toISOString(),
-        score: 0,
-        total_marks: 0,
-        ejected_by_violation: true,
-      }).eq("id", sid);
-      localStorage.removeItem(`violations_${sid}`);
-      sessionStorage.removeItem(`q_pos_${sid}`);
-    }
-
-    setEjectedByViolation(true);
-    setEjected(true);
-  }, [sessionId]);
-
-  const handleCheatWarning = useCallback((event: CheatEventType, _count: number) => {
-    if (warningOpenRef.current) return;
-    totalViolationsRef.current += 1;
-    const total = totalViolationsRef.current;
-
-    // Persist violation count so it survives page refresh
-    const sid = sessionStorage.getItem("session_id");
-    if (sid) localStorage.setItem(`violations_${sid}`, String(total));
-
-    if (total > MAX_VIOLATIONS) { handleEject(); return; }
-    warningOpenRef.current = true;
-    setActiveWarning({ event, total });
-  }, [handleEject]);
-
-  const { requestFullscreen } = useCheatPrevention({
-    sessionId,
-    securityLevel,
-    onWarning: handleCheatWarning,
-    enabled: !loading && !examEnded && !ejected && !!sessionId && fullscreenReady,
-  });
-
   useEffect(() => {
     const sid = sessionStorage.getItem("session_id");
     if (!sid) { navigate(`/exam/${accessCode}`); return; }
     setSessionId(sid);
 
-    // Restore violation count from localStorage (survives refresh)
-    const stored = parseInt(localStorage.getItem(`violations_${sid}`) || "0", 10);
-    if (stored > 0) {
-      totalViolationsRef.current = stored;
-      // If already ejected before refresh, show ejection screen immediately
-      if (stored >= MAX_VIOLATIONS) {
-        setEjectedByViolation(true);
-        setLoading(false);
-        return;
-      }
-    }
-
     // Block accidental refresh/close during exam
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "Refreshing will not reset your violations. Are you sure?";
+      e.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
 
@@ -307,7 +144,6 @@ const ExamPage = () => {
 
         setExamId(exam.id);
         setExamTitle(exam.title || "Exam");
-        setSecurityLevel((exam.security_level as SecurityLevel) || "low");
 
         // Load student data from session and database
         const sessionStudentName = sessionStorage.getItem("student_name") || "";
@@ -534,7 +370,7 @@ const ExamPage = () => {
   }, [accessCode, navigate]);
 
   useEffect(() => {
-    if (loading || timeLeft <= 0 || examEnded || ejected) return;
+    if (loading || timeLeft <= 0 || examEnded) return;
     const timer = setInterval(() => {
       setTimeLeft((prev: number) => {
         if (prev <= 1) { clearInterval(timer); handleSubmit(true); return 0; }
@@ -542,7 +378,7 @@ const ExamPage = () => {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [loading, handleSubmit, timeLeft, examEnded, ejected]);
+  }, [loading, handleSubmit, timeLeft, examEnded]);
 
   // Persist current question position so it survives reconnect
   useEffect(() => {
@@ -605,33 +441,6 @@ const ExamPage = () => {
     );
   }
 
-  if (ejectedByViolation) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-red-950 p-6">
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md text-center">
-          <div className="rounded-2xl bg-white shadow-2xl p-8">
-            <div className="mx-auto mb-5 h-20 w-20 rounded-full bg-red-100 flex items-center justify-center">
-              <XCircle className="h-10 w-10 text-red-600" />
-            </div>
-            <h1 className="text-2xl font-extrabold text-red-700 mb-3">Your Score Has Been Removed</h1>
-            <p className="text-slate-600 mb-2">
-              You reached <strong>{MAX_VIOLATIONS} violations</strong> during this exam.
-            </p>
-            <p className="text-slate-500 text-sm mb-6">
-              Your score has been set to <strong>0</strong> and your teacher has been notified. This action cannot be undone.
-            </p>
-            <Button type="button" onClick={() => {
-              const isStudent = sessionStorage.getItem("student_logged_in") === "true";
-              navigate(isStudent ? "/student/dashboard" : "/");
-            }} variant="outline" className="w-full">
-              {sessionStorage.getItem("student_logged_in") === "true" ? "Go to Dashboard" : "Return to Home"}
-            </Button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
   if (examEnded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6">
@@ -678,7 +487,6 @@ const ExamPage = () => {
     { key: "D", text: q.option_d, image: q.option_d_image },
   ];
   const isTimeLow = timeLeft < 300;
-  const totalViolations = totalViolationsRef.current;
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === questions.length;
   const isLastQuestion = currentQuestion === questions.length - 1;
@@ -687,21 +495,6 @@ const ExamPage = () => {
     <>
       {/* ── CSS fullscreen overlay — covers entire viewport, no browser API ── */}
       <div className="fixed inset-0 z-[100] bg-gray-100 overflow-hidden select-none exam-fullscreen">
-        {/* Warning overlay */}
-        <AnimatePresence>
-          {activeWarning && (
-            <CheatWarningOverlay
-              event={activeWarning.event}
-              totalViolations={activeWarning.total}
-              onDismiss={() => {
-                warningOpenRef.current = false;
-                if (activeWarning.total > MAX_VIOLATIONS) { handleEject(); }
-                else { setActiveWarning(null); requestFullscreen(); }
-              }}
-              onEject={handleEject}
-            />
-          )}
-        </AnimatePresence>
 
         {/* Minimal top bar */}
         <div className="bg-white border-b border-gray-200 px-6 py-3">
@@ -713,16 +506,6 @@ const ExamPage = () => {
               <div className="text-sm font-medium text-gray-800">
                 {examTitle}
               </div>
-              {totalViolations > 0 && (
-                <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  totalViolations >= MAX_VIOLATIONS ? "bg-red-500 text-white animate-pulse"
-                  : totalViolations >= 2 ? "bg-orange-400 text-white"
-                  : "bg-amber-400 text-white"
-                }`}>
-                  <ShieldAlert className="h-3.5 w-3.5" />
-                  {totalViolations}/{MAX_VIOLATIONS} warnings
-                </div>
-              )}
             </div>
             <div className="text-sm text-gray-600 font-medium">
               {studentName ? studentName.toUpperCase() : "STUDENT"} | {studentId || "ID NOT FOUND"}
