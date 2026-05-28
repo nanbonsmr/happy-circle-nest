@@ -78,7 +78,14 @@ const ExamActionsMenu = ({
   const updatePos = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const menuHeight = menuRef.current?.offsetHeight ?? 320;
+      // Flip upward if not enough space below
+      const top = spaceBelow >= menuHeight || spaceBelow >= spaceAbove
+        ? rect.bottom + 6
+        : rect.top - menuHeight - 6;
+      setMenuPos({ top, right: window.innerWidth - rect.right });
     }
     rafRef.current = requestAnimationFrame(updatePos);
   };
@@ -188,68 +195,71 @@ const ExamActionsMenu = ({
       {open && createPortal(
         <div
           ref={menuRef}
-          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-sm"
+          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999, maxHeight: "min(420px, calc(100vh - 80px))" }}
+          className="w-56 bg-white rounded-xl shadow-xl border border-slate-200 text-sm flex flex-col"
         >
-          {/* Edit */}
-          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Edit</p>
-          {menuItem(onEditQuestions, <Pencil className="h-3.5 w-3.5 text-blue-500 shrink-0" />, "Edit Questions")}
-          {menuItem(onQuickEdit, <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Quick Edit (Title / Duration)")}
+          {/* Scrollable body */}
+          <div className="overflow-y-auto overscroll-contain flex-1 py-1.5">
+            {/* Edit */}
+            <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Edit</p>
+            {menuItem(onEditQuestions, <Pencil className="h-3.5 w-3.5 text-blue-500 shrink-0" />, "Edit Questions")}
+            {menuItem(onQuickEdit, <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Quick Edit (Title / Duration)")}
 
-          <div className="my-1 border-t border-slate-100" />
+            <div className="my-1 border-t border-slate-100" />
 
-          {/* Share */}
-          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Share</p>
-          {menuItem(onCopyLink, <Copy className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Copy Exam Link")}
-          <button
-            type="button"
-            onClick={() => { onClone(); setOpen(false); }}
-            disabled={cloningId === exam.id}
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors disabled:opacity-50"
-          >
-            {cloningId === exam.id
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500 shrink-0" />
-              : <Copy className="h-3.5 w-3.5 text-indigo-500 shrink-0" />}
-            <span>Duplicate Exam</span>
-          </button>
-
-          <div className="my-1 border-t border-slate-100" />
-
-          {/* Results */}
-          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Results</p>
-          {(exam.status === "draft" || exam.status === "published") && (
+            {/* Share */}
+            <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Share</p>
+            {menuItem(onCopyLink, <Copy className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Copy Exam Link")}
             <button
               type="button"
-              onClick={() => { onPublishResults(); setOpen(false); }}
-              disabled={sendingId === exam.id}
+              onClick={() => { onClone(); setOpen(false); }}
+              disabled={cloningId === exam.id}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors disabled:opacity-50"
             >
-              <Send className="h-3.5 w-3.5 text-[#1a8fe3] shrink-0" />
-              <span>Send Results to Students</span>
+              {cloningId === exam.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500 shrink-0" />
+                : <Copy className="h-3.5 w-3.5 text-indigo-500 shrink-0" />}
+              <span>Duplicate Exam</span>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => { onToggleVisibility(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-sm transition-colors"
-          >
-            {isPublished
-              ? <><EyeOff className="h-3.5 w-3.5 text-amber-500 shrink-0" /><span className="text-amber-600 font-medium">Hide Results from Students</span></>
-              : <><Eye className="h-3.5 w-3.5 text-green-500 shrink-0" /><span className="text-green-700 font-medium">Show Results to Students</span></>
-            }
-          </button>
 
-          <div className="my-1 border-t border-slate-100" />
+            <div className="my-1 border-t border-slate-100" />
 
-          {/* Danger */}
-          <button
-            type="button"
-            onClick={() => { onDelete(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-red-50 text-red-500 text-sm transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5 shrink-0" />
-            <span>Delete Exam</span>
-          </button>
+            {/* Results */}
+            <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Results</p>
+            {(exam.status === "draft" || exam.status === "published") && (
+              <button
+                type="button"
+                onClick={() => { onPublishResults(); setOpen(false); }}
+                disabled={sendingId === exam.id}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5 text-[#1a8fe3] shrink-0" />
+                <span>Send Results to Students</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { onToggleVisibility(); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-sm transition-colors"
+            >
+              {isPublished
+                ? <><EyeOff className="h-3.5 w-3.5 text-amber-500 shrink-0" /><span className="text-amber-600 font-medium">Hide Results from Students</span></>
+                : <><Eye className="h-3.5 w-3.5 text-green-500 shrink-0" /><span className="text-green-700 font-medium">Show Results to Students</span></>
+              }
+            </button>
+
+            <div className="my-1 border-t border-slate-100" />
+
+            {/* Danger */}
+            <button
+              type="button"
+              onClick={() => { onDelete(); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-red-50 text-red-500 text-sm transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Delete Exam</span>
+            </button>
+          </div>
         </div>,
         document.body
       )}
