@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FileText, BarChart3, Settings,
-  Users, Activity, Loader2, Play, Pencil, Trash2, Mail,
+  Users, Activity, Loader2, Play, Pencil, Trash2,
   LogOut, Plus, Search, Download, ChevronUp, ChevronDown,
-  Copy, Radio, Square, RefreshCw, ShieldAlert, Eye, Clock,
+  Copy, Radio, Square, RefreshCw, ShieldAlert, Eye, EyeOff, Clock,
+  MoreVertical, Send, CheckCircle2, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,152 @@ const STATUS_COLORS: Record<string, string> = {
   published: "bg-blue-100 text-blue-600",
   active: "bg-green-100 text-green-600",
   completed: "bg-slate-100 text-slate-500",
+};
+
+// ─── Exam Actions Dropdown ────────────────────────────────────────────────────
+interface ExamActionsMenuProps {
+  exam: Exam;
+  counts: { total: number; waiting: number; in_progress: number; submitted: number };
+  sendingId: string | null;
+  stoppingId: string | null;
+  cloningId: string | null;
+  onStart: () => void;
+  onStop: () => void;
+  onEditQuestions: () => void;
+  onQuickEdit: () => void;
+  onCopyLink: () => void;
+  onClone: () => void;
+  onPublishResults: () => void;
+  onToggleVisibility: () => void;
+  onDelete: () => void;
+}
+
+const ExamActionsMenu = ({
+  exam, counts, sendingId, stoppingId, cloningId,
+  onStart, onStop, onEditQuestions, onQuickEdit, onCopyLink,
+  onClone, onPublishResults, onToggleVisibility, onDelete,
+}: ExamActionsMenuProps) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const isPublished = (exam as any).results_published;
+  const isBusy = sendingId === exam.id || stoppingId === exam.id || cloningId === exam.id;
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Primary action button — context-aware */}
+      <div className="flex items-center gap-1.5">
+        {exam.status === "published" && (
+          <button
+            type="button"
+            onClick={onStart}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors shadow-sm"
+          >
+            <Play className="h-3.5 w-3.5" /> Start
+          </button>
+        )}
+        {exam.status === "active" && (
+          <button
+            type="button"
+            onClick={onStop}
+            disabled={stoppingId === exam.id}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60"
+          >
+            {stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+            Stop
+          </button>
+        )}
+        {(exam.status === "completed" || exam.status === "active") && (
+          <button
+            type="button"
+            onClick={onPublishResults}
+            disabled={sendingId === exam.id}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60"
+          >
+            {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {sendingId === exam.id ? "Publishing…" : "Send Results"}
+          </button>
+        )}
+
+        {/* More actions dropdown */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          disabled={isBusy}
+          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors disabled:opacity-40"
+          title="More actions"
+          aria-label="More actions"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-lg border border-slate-100 z-50 py-1 text-sm">
+          {/* Edit group */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Edit</div>
+          <button type="button" onClick={() => { onEditQuestions(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
+            <Pencil className="h-3.5 w-3.5 text-blue-500" /> Edit Questions
+          </button>
+          <button type="button" onClick={() => { onQuickEdit(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
+            <Settings className="h-3.5 w-3.5 text-slate-400" /> Quick Edit (Title / Duration)
+          </button>
+
+          <div className="border-t border-slate-100 my-1" />
+
+          {/* Share group */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Share</div>
+          <button type="button" onClick={() => { onCopyLink(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
+            <Copy className="h-3.5 w-3.5 text-slate-400" /> Copy Exam Link
+          </button>
+          <button type="button" onClick={() => { onClone(); setOpen(false); }}
+            disabled={cloningId === exam.id}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50">
+            {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" /> : <Copy className="h-3.5 w-3.5 text-indigo-500" />}
+            Duplicate Exam
+          </button>
+
+          <div className="border-t border-slate-100 my-1" />
+
+          {/* Results group */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Results</div>
+          {(exam.status === "draft" || exam.status === "published") && (
+            <button type="button" onClick={() => { onPublishResults(); setOpen(false); }}
+              disabled={sendingId === exam.id}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50">
+              <Send className="h-3.5 w-3.5 text-[#1a8fe3]" /> Send Results to Students
+            </button>
+          )}
+          <button type="button" onClick={() => { onToggleVisibility(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 transition-colors">
+            {isPublished
+              ? <><EyeOff className="h-3.5 w-3.5 text-amber-500" /><span className="text-amber-600 font-medium">Hide Results from Students</span></>
+              : <><Eye className="h-3.5 w-3.5 text-green-500" /><span className="text-green-700 font-medium">Show Results to Students</span></>
+            }
+          </button>
+
+          <div className="border-t border-slate-100 my-1" />
+
+          {/* Danger zone */}
+          <button type="button" onClick={() => { onDelete(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-500 transition-colors">
+            <Trash2 className="h-3.5 w-3.5" /> Delete Exam
+          </button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const TeacherDashboard = () => {
@@ -639,27 +786,28 @@ const TeacherDashboard = () => {
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[exam.status] || STATUS_COLORS.draft}`}>{exam.status}</span>
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1">
-                              {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start exam"><Play className="h-3.5 w-3.5" /></button>}
-                              {exam.status === "active" && <button type="button" onClick={() => handleStopExam(exam.id)} disabled={stoppingId === exam.id} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="Stop exam">{stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}</button>}
-                              <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit exam"><Pencil className="h-3.5 w-3.5" /></button>
-                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Send results">
-                                {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                              </button>
-                              <button type="button" onClick={async () => {
+                            <ExamActionsMenu
+                              exam={exam}
+                              counts={c}
+                              sendingId={sendingId}
+                              stoppingId={stoppingId}
+                              cloningId={cloningId}
+                              onStart={() => handleStartExam(exam.id)}
+                              onStop={() => handleStopExam(exam.id)}
+                              onEditQuestions={() => navigate(`/teacher/edit/${exam.id}`)}
+                              onQuickEdit={() => openEditExam(exam)}
+                              onCopyLink={() => handleCopyLink(exam.access_code)}
+                              onClone={() => handleCloneExam(exam)}
+                              onPublishResults={() => handleSendResults(exam.id)}
+                              onToggleVisibility={async () => {
                                 const newVal = !(exam as any).results_published;
                                 await supabase.from("exams").update({ results_published: newVal } as any).eq("id", exam.id);
-                                if (newVal) {
-                                  // Snapshot + per-session publish for sessions not yet published
-                                  await publishPendingSessionResults(exam.id);
-                                }
+                                if (newVal) await publishPendingSessionResults(exam.id);
                                 setExams(prev => prev.map(e => e.id === exam.id ? { ...e, results_published: newVal } as any : e));
-                                toast({ title: newVal ? "Results published (only new submissions affected)" : "Auto-publish disabled. Already-published results stay visible." });
-                              }} className={`p-1.5 rounded-lg ${(exam as any).results_published ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`} title={`${(exam as any).results_published ? 'Hide' : 'Publish'} results for students`}>
-                                <Eye className="h-3.5 w-3.5" />
-                              </button>
-                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
-                            </div>
+                                toast({ title: newVal ? "Results are now visible to students." : "Results hidden from students." });
+                              }}
+                              onDelete={() => setDeletingExamId(exam.id)}
+                            />
                           </td>
                         </tr>
                       );
@@ -728,20 +876,28 @@ const TeacherDashboard = () => {
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[exam.status] || STATUS_COLORS.draft}`}>{exam.status}</span>
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {exam.status === "published" && <button type="button" onClick={() => handleStartExam(exam.id)} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100" title="Start exam"><Play className="h-3.5 w-3.5" /></button>}
-                              {exam.status === "active" && <button type="button" onClick={() => handleStopExam(exam.id)} disabled={stoppingId === exam.id} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="Stop exam">{stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}</button>}
-                              <button type="button" onClick={() => navigate(`/teacher/edit/${exam.id}`)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="Edit questions"><Pencil className="h-3.5 w-3.5" /></button>
-                              <button type="button" onClick={() => openEditExam(exam)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Quick edit"><Settings className="h-3.5 w-3.5" /></button>
-                              <button type="button" onClick={() => handleCopyLink(exam.access_code)} className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100" title="Copy exam link"><Copy className="h-3.5 w-3.5" /></button>
-                              <button type="button" onClick={() => handleCloneExam(exam)} disabled={cloningId === exam.id} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Clone exam">
-                                {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
-                              </button>
-                              <button type="button" onClick={() => handleSendResults(exam.id)} disabled={sendingId === exam.id} className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="Email results">
-                                {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                              </button>
-                              <button type="button" onClick={() => setDeletingExamId(exam.id)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
-                            </div>
+                            <ExamActionsMenu
+                              exam={exam}
+                              counts={c}
+                              sendingId={sendingId}
+                              stoppingId={stoppingId}
+                              cloningId={cloningId}
+                              onStart={() => handleStartExam(exam.id)}
+                              onStop={() => handleStopExam(exam.id)}
+                              onEditQuestions={() => navigate(`/teacher/edit/${exam.id}`)}
+                              onQuickEdit={() => openEditExam(exam)}
+                              onCopyLink={() => handleCopyLink(exam.access_code)}
+                              onClone={() => handleCloneExam(exam)}
+                              onPublishResults={() => handleSendResults(exam.id)}
+                              onToggleVisibility={async () => {
+                                const newVal = !(exam as any).results_published;
+                                await supabase.from("exams").update({ results_published: newVal } as any).eq("id", exam.id);
+                                if (newVal) await publishPendingSessionResults(exam.id);
+                                setExams(prev => prev.map(e => e.id === exam.id ? { ...e, results_published: newVal } as any : e));
+                                toast({ title: newVal ? "Results are now visible to students." : "Results hidden from students." });
+                              }}
+                              onDelete={() => setDeletingExamId(exam.id)}
+                            />
                           </td>
                         </tr>
                       );
@@ -842,14 +998,40 @@ const TeacherDashboard = () => {
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
+              <div>
+                <h2 className="font-bold text-[#1e3a5f]">Student Reports</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{filteredReports.length} student{filteredReports.length !== 1 ? "s" : ""} shown</p>
+              </div>
               {(() => {
-                const pendingResults = reports.filter((r) => r.status === "submitted" && !r.resultPublishedAt).length;
-                return pendingResults > 0 ? (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
-                    {pendingResults} result{pendingResults > 1 ? "s" : ""} not sent
-                  </span>
-                ) : null;
+                const pendingRows = reports.filter((r) => r.status === "submitted" && !r.resultPublishedAt);
+                if (pendingRows.length === 0) return null;
+                const examIds = [...new Set(pendingRows.map(r => r.examId))];
+                return (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      <XCircle className="h-3.5 w-3.5" />
+                      {pendingRows.length} result{pendingRows.length > 1 ? "s" : ""} not sent yet
+                    </span>
+                    {examIds.map(eid => {
+                      const exam = exams.find(e => e.id === eid);
+                      const count = pendingRows.filter(r => r.examId === eid).length;
+                      return (
+                        <button
+                          key={eid}
+                          type="button"
+                          onClick={() => handleSendResults(eid)}
+                          disabled={sendingId === eid}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white transition-colors shadow-sm disabled:opacity-60"
+                        >
+                          {sendingId === eid
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Send className="h-3.5 w-3.5" />}
+                          {sendingId === eid ? "Sending…" : `Send All (${count}) — ${exam?.title ?? "Exam"}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
               })()}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -959,23 +1141,27 @@ const TeacherDashboard = () => {
                             <span className="text-xs text-slate-300">—</span>
                           ) : r.resultPublishedAt ? (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
-                                ✓ Sent
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 className="h-3 w-3" /> Sent
                               </span>
                               <p className="text-xs text-slate-400">{new Date(r.resultPublishedAt).toLocaleDateString()}</p>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-1">
-                              <span className="text-xs font-semibold text-amber-500">Not sent</span>
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                <XCircle className="h-3 w-3" /> Pending
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => handlePublishSingleResult(r.sessionId, r.examId, r.studentName)}
                                 disabled={resendingEmailId === r.sessionId}
-                                className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1"
-                                title={`Publish result for ${r.studentName}`}
+                                className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white transition-colors disabled:opacity-50 shadow-sm"
+                                title={`Send result to ${r.studentName}`}
                               >
-                                {resendingEmailId === r.sessionId ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                Send
+                                {resendingEmailId === r.sessionId
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <Send className="h-3 w-3" />}
+                                {resendingEmailId === r.sessionId ? "Sending…" : "Send Now"}
                               </button>
                             </div>
                           )}
