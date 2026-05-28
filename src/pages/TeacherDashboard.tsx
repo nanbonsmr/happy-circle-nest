@@ -72,6 +72,33 @@ const ExamActionsMenu = ({
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // Continuously track trigger position via rAF so menu follows scroll
+  const updatePos = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    rafRef.current = requestAnimationFrame(updatePos);
+  };
+
+  useEffect(() => {
+    if (open) {
+      rafRef.current = requestAnimationFrame(updatePos);
+    } else {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    }
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
@@ -86,21 +113,10 @@ const ExamActionsMenu = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Close on scroll so menu doesn't float away
-  useEffect(() => {
-    if (!open) return;
-    const handler = () => setOpen(false);
-    window.addEventListener("scroll", handler, true);
-    return () => window.removeEventListener("scroll", handler, true);
-  }, [open]);
-
   const handleToggle = () => {
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setMenuPos({
-        top: rect.bottom + 6,
-        right: window.innerWidth - rect.right,
-      });
+      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
     }
     setOpen((v) => !v);
   };
@@ -168,7 +184,7 @@ const ExamActionsMenu = ({
         <MoreVertical className="h-4 w-4" />
       </button>
 
-      {/* Portal dropdown — renders at body level, never clipped */}
+      {/* Portal dropdown — fixed to viewport, tracks trigger via rAF */}
       {open && createPortal(
         <div
           ref={menuRef}
