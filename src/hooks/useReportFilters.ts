@@ -21,11 +21,14 @@ export interface ReportRow {
   fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High";
   ejectedByViolation: boolean;
+  resultPublishedAt: string | null;
+  resultEmailSentAt: string | null;
 }
 
 export function useReportFilters(reports: ReportRow[]) {
   const [examFilter, setExamFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [emailFilter, setEmailFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<"percentage" | "studentName">("percentage");
   const [sortAsc, setSortAsc] = useState(false);
@@ -45,6 +48,13 @@ export function useReportFilters(reports: ReportRow[]) {
 
     if (examFilter !== "all") {
       rows = rows.filter((r) => r.examId === examFilter);
+    }
+
+    // Email filter
+    if (emailFilter === "sent") {
+      rows = rows.filter((r) => !!r.resultEmailSentAt);
+    } else if (emailFilter === "not_sent") {
+      rows = rows.filter((r) => r.status === "submitted" && r.resultPublishedAt && !r.resultEmailSentAt);
     }
 
     if (search.trim()) {
@@ -72,7 +82,7 @@ export function useReportFilters(reports: ReportRow[]) {
     });
 
     return rows;
-  }, [reports, examFilter, statusFilter, search, sortField, sortAsc]);
+  }, [reports, examFilter, statusFilter, emailFilter, search, sortField, sortAsc]);
 
   const exportXLSX = (filename = "results.xlsx") => {
     if (!filtered.length) return;
@@ -91,6 +101,12 @@ export function useReportFilters(reports: ReportRow[]) {
       Incorrect: r.incorrect,
       Unanswered: r.unanswered,
       Risk: r.suspiciousScore,
+      "Result Published": r.resultPublishedAt
+        ? new Date(r.resultPublishedAt).toLocaleString()
+        : "Not Published",
+      "Email Sent": r.resultEmailSentAt
+        ? new Date(r.resultEmailSentAt).toLocaleString()
+        : "Not Sent",
       "Submitted At": r.submittedAt
         ? new Date(r.submittedAt).toLocaleString()
         : "—",
@@ -104,6 +120,7 @@ export function useReportFilters(reports: ReportRow[]) {
   return {
     examFilter, setExamFilter,
     statusFilter, setStatusFilter,
+    emailFilter, setEmailFilter,
     search, setSearch,
     sortField, sortAsc, toggleSort,
     filtered,

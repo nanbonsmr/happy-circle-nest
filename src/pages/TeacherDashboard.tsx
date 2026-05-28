@@ -33,6 +33,7 @@ interface StudentReport {
   totalQuestions: number; unanswered: number; percentage: number | null;
   tabSwitches: number; fullscreenExits: number;
   suspiciousScore: "Low" | "Medium" | "High"; ejectedByViolation: boolean;
+  resultPublishedAt: string | null; resultEmailSentAt: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -70,6 +71,7 @@ const TeacherDashboard = () => {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cloningId, setCloningId] = useState<string | null>(null);
   const [stoppingId, setStoppingId] = useState<string | null>(null);
+  const [resendingEmailId, setResendingEmailId] = useState<string | null>(null);
   // Monitor
   const [monitorExamId, setMonitorExamId] = useState<string>("");
   const [monitorSessions, setMonitorSessions] = useState<any[]>([]);
@@ -159,7 +161,7 @@ const TeacherDashboard = () => {
     setReportsLoading(true);
     try {
       const examIds = exams.map((e) => e.id);
-      const { data: sessions } = await supabase.from("exam_sessions").select("*").in("exam_id", examIds);
+      const { data: sessions } = await supabase.from("exam_sessions").select("*, result_published_at, result_email_sent_at").in("exam_id", examIds);
       if (!sessions?.length) { setReports([]); setReportsLoading(false); setReportsLoaded(true); return; }
       const { data: questions } = await supabase.from("questions").select("exam_id").in("exam_id", examIds);
       const sessionIds = sessions.map((s) => s.id);
@@ -188,6 +190,8 @@ const TeacherDashboard = () => {
           percentage: s.status === "submitted" ? pct : null,
           tabSwitches, fullscreenExits, suspiciousScore,
           ejectedByViolation: s.ejected_by_violation === true,
+          resultPublishedAt: (s as any).result_published_at ?? null,
+          resultEmailSentAt: (s as any).result_email_sent_at ?? null,
         };
       });
       setReports(reps);
@@ -344,6 +348,35 @@ const TeacherDashboard = () => {
     setSendingId(null);
   };
 
+  const handleResendEmail = async (sessionId: string, examId: string, studentName: string) => {
+    setResendingEmailId(sessionId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+      const result = await supabase.functions.invoke("send-exam-results", {
+        body: { examId, sessionId },
+      });
+      if (result.error) throw result.error;
+      const data = result.data as any;
+      if (data?.errors?.length) {
+        toast({ title: `Failed to send to ${studentName}`, description: data.errors[0], variant: "destructive" });
+      } else {
+        // Update local state so the badge flips immediately
+        setReports((prev) =>
+          prev.map((r) =>
+            r.sessionId === sessionId
+              ? { ...r, resultEmailSentAt: new Date().toISOString() }
+              : r
+          )
+        );
+        toast({ title: "Email sent!", description: `Result sent to ${studentName}.` });
+      }
+    } catch (err: any) {
+      toast({ title: "Failed to send email", description: err.message, variant: "destructive" });
+    }
+    setResendingEmailId(null);
+  };
+
   // Snapshot question content into student_answers and set result_published_at — never overwrites already-published sessions
   const publishPendingSessionResults = async (examId: string) => {
     const { data: pending } = await (supabase
@@ -481,7 +514,7 @@ const TeacherDashboard = () => {
     return exams.filter((e) => e.title.toLowerCase().includes(q) || e.subject?.toLowerCase().includes(q) || e.access_code.toLowerCase().includes(q));
   }, [exams, examSearch]);
 
-  const { examFilter, setExamFilter, statusFilter, setStatusFilter, search, setSearch,
+  const { examFilter, setExamFilter, statusFilter, setStatusFilter, emailFilter, setEmailFilter, search, setSearch,
     sortField, sortAsc, toggleSort, filtered: filteredReports, exportXLSX } = useReportFilters(reports);
 
   const navItems = [
@@ -786,7 +819,17 @@ const TeacherDashboard = () => {
       {activeTab === "reports" && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 space-y-3">
-            <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="font-bold text-[#1e3a5f]">Student Reports ({filteredReports.length})</h2>
+              {(() => {
+                const pendingEmails = reports.filter((r) => r.status === "submitted" && r.resultPublishedAt && !r.resultEmailSentAt).length;
+                return pendingEmails > 0 ? (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                    <Mail className="h-3 w-3" /> {pendingEmails} email{pendingEmails > 1 ? "s" : ""} not sent
+                  </span>
+                ) : null;
+              })()}
+            </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <select value={examFilter} onChange={(e) => setExamFilter(e.target.value)}
                 title="Filter by exam" aria-label="Filter by exam"
@@ -801,6 +844,13 @@ const TeacherDashboard = () => {
                 <option value="submitted">Submitted</option>
                 <option value="in_progress">In Progress</option>
                 <option value="waiting">Waiting</option>
+              </select>
+              <select value={emailFilter} onChange={(e) => setEmailFilter(e.target.value)}
+                title="Filter by email status" aria-label="Filter by email status"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:border-[#1a8fe3]">
+                <option value="all">All Emails</option>
+                <option value="sent">Email Sent</option>
+                <option value="not_sent">Email Not Sent</option>
               </select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -833,6 +883,7 @@ const TeacherDashboard = () => {
                     <th className="text-center px-4 py-3 font-semibold">Answers</th>
                     <th className="text-center px-4 py-3 font-semibold">Progress</th>
                     <th className="text-center px-4 py-3 font-semibold">Risk</th>
+                    <th className="text-center px-4 py-3 font-semibold">Email</th>
                     <th className="text-left px-4 py-3 font-semibold">Status</th>
                   </tr>
                 </thead>
@@ -880,6 +931,34 @@ const TeacherDashboard = () => {
                         <td className="px-4 py-3.5 text-center">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.suspiciousScore === "High" ? "bg-red-100 text-red-600" : r.suspiciousScore === "Medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-700"}`}>{r.suspiciousScore}</span>
                           <p className="text-xs text-slate-400 mt-0.5">{r.tabSwitches}t · {r.fullscreenExits}fs</p>
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          {!isSubmitted || !r.resultPublishedAt ? (
+                            <span className="text-xs text-slate-300">—</span>
+                          ) : r.resultEmailSentAt ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
+                                <Mail className="h-3 w-3" /> Sent
+                              </span>
+                              <p className="text-xs text-slate-400">{new Date(r.resultEmailSentAt).toLocaleDateString()}</p>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                                <Mail className="h-3 w-3" /> Not sent
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleResendEmail(r.sessionId, r.examId, r.studentName)}
+                                disabled={resendingEmailId === r.sessionId}
+                                className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-600 hover:bg-purple-100 disabled:opacity-50 flex items-center gap-1"
+                                title={`Send result email to ${r.studentName}`}
+                              >
+                                {resendingEmailId === r.sessionId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+                                Send
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3.5">
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${r.status === "submitted" ? "bg-green-100 text-green-600" : r.status === "in_progress" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{r.status === "in_progress" ? "Active" : r.status}</span>

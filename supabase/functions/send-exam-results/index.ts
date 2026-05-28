@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { examId, senderEmail: _senderEmail, senderName: _senderName } = await req.json();
+    const { examId, senderEmail: _senderEmail, senderName: _senderName, sessionId: singleSessionId } = await req.json();
     if (!examId) {
       return new Response(JSON.stringify({ error: "examId is required" }), {
         status: 400,
@@ -71,14 +71,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get submitted sessions that have been individually published but not yet emailed
-    const { data: sessions } = await supabaseAdmin
+    // If a specific sessionId is provided, resend only for that session (ignores email-sent guard)
+    // Otherwise send to all published-but-not-yet-emailed sessions
+    let sessionsQuery = supabaseAdmin
       .from("exam_sessions")
       .select("*")
       .eq("exam_id", examId)
       .eq("status", "submitted")
-      .not("result_published_at", "is", null)
-      .is("result_email_sent_at", null);
+      .not("result_published_at", "is", null);
+
+    if (singleSessionId) {
+      sessionsQuery = sessionsQuery.eq("id", singleSessionId);
+    } else {
+      sessionsQuery = sessionsQuery.is("result_email_sent_at", null);
+    }
+
+    const { data: sessions } = await sessionsQuery;
 
     if (!sessions || sessions.length === 0) {
       return new Response(JSON.stringify({ message: "No new results to send", sent: 0 }), {
