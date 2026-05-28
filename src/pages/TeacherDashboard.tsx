@@ -299,6 +299,10 @@ const TeacherDashboard = () => {
   // Monitor
   const [monitorExamId, setMonitorExamId] = useState<string>("");
   const [monitorSessions, setMonitorSessions] = useState<any[]>([]);
+  const [monitorLastUpdated, setMonitorLastUpdated] = useState<Date | null>(null);
+  const [monitorSearch, setMonitorSearch] = useState("");
+  const [monitorCheatCounts, setMonitorCheatCounts] = useState<Record<string, number>>({});
+  const [, setTimerTick] = useState(0); // forces re-render every second for countdown
   // Exams search
   const [examSearch, setExamSearch] = useState("");
 
@@ -360,21 +364,64 @@ const TeacherDashboard = () => {
     setExams((prev) => prev.map((e) => e.id === examId ? { ...e, status: newStatus } : e));
   });
 
-  // Live monitor
+  // Live monitor — real-time + polling fallback for INSERT events
   useEffect(() => {
     if (activeTab !== "monitor" || !monitorExamId) return;
+
     const load = async () => {
       const { data } = await supabase.from("exam_sessions")
         .select("id, student_name, student_email, status, submitted_at, score, total_marks, ejected_by_violation")
         .eq("exam_id", monitorExamId).order("created_at");
       setMonitorSessions(data || []);
+      setMonitorLastUpdated(new Date());
+
+      // Fetch cheat log counts per session
+      if (data?.length) {
+        const ids = data.map((s: any) => s.id);
+        const { data: logs } = await supabase
+          .from("cheat_logs")
+          .select("session_id")
+          .in("session_id", ids);
+        const counts: Record<string, number> = {};
+        (logs || []).forEach((l: any) => {
+          counts[l.session_id] = (counts[l.session_id] || 0) + 1;
+        });
+        setMonitorCheatCounts(counts);
+      }
     };
+
     load();
-    const ch = supabase.channel("monitor-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_sessions", filter: `exam_id=eq.${monitorExamId}` }, load)
+
+    // Supabase Realtime column filters don't apply to INSERT events,
+    // so we subscribe without a filter and check exam_id in the callback.
+    const ch = supabase.channel(`monitor-rt-${monitorExamId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "exam_sessions" },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as any;
+          if (row?.exam_id === monitorExamId) load();
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+
+    // Polling fallback every 5 s — catches any missed events
+    const poll = setInterval(load, 5000);
+
+    return () => {
+      supabase.removeChannel(ch);
+      clearInterval(poll);
+    };
   }, [activeTab, monitorExamId]);
+
+  // Tick every second to update the exam countdown timer
+  useEffect(() => {
+    if (activeTab !== "monitor" || !monitorExamId) return;
+    const exam = exams.find(e => e.id === monitorExamId);
+    if (exam?.status !== "active") return;
+    const t = setInterval(() => setTimerTick(v => v + 1), 1000);
+    return () => clearInterval(t);
+  }, [activeTab, monitorExamId, exams]);
 
   // Load reports once when tab opens
   useEffect(() => {
@@ -856,8 +903,25 @@ const TeacherDashboard = () => {
                           <td className="px-4 py-3.5 text-slate-500">{exam.subject || "—"}</td>
                           <td className="px-4 py-3.5 text-slate-500">{exam.duration_minutes} min</td>
                           <td className="px-4 py-3.5">
-                            <span className="font-medium text-[#1e3a5f]">{c.total}</span>
-                            {c.waiting + c.in_progress > 0 && <span className="ml-1.5 text-xs text-green-600 font-medium">({c.waiting + c.in_progress} live)</span>}
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-[#1e3a5f]">{c.total}</span>
+                                {c.waiting + c.in_progress > 0 && (
+                                  <span className="text-xs text-green-600 font-medium">({c.waiting + c.in_progress} live)</span>
+                                )}
+                              </div>
+                              {c.total > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-blue-400 rounded-full transition-all"
+                                      style={{ width: `${Math.round((c.submitted / c.total) * 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-slate-400">{c.submitted}/{c.total} done</span>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[exam.status] || STATUS_COLORS.draft}`}>{exam.status}</span>
@@ -990,82 +1054,257 @@ const TeacherDashboard = () => {
       {/* Monitor Tab */}
       {activeTab === "monitor" && (
         <div className="space-y-4">
+          {/* Exam selector + live badge */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <select value={monitorExamId} onChange={(e) => setMonitorExamId(e.target.value)}
-                title="Select exam to monitor" aria-label="Select exam to monitor"
-                className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]">
-                <option value="">Select an exam to monitor…</option>
-                {exams.filter((e) => e.status === "active" || e.status === "published").map((e) => (
-                  <option key={e.id} value={e.id}>{e.title} — {e.status}</option>
-                ))}
-              </select>
-              <div className="flex items-center gap-1.5 text-xs text-green-600 font-semibold shrink-0">
-                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" /> Live
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Select Exam</label>
+                <select
+                  value={monitorExamId}
+                  onChange={(e) => { setMonitorExamId(e.target.value); setMonitorLastUpdated(null); setMonitorSearch(""); }}
+                  title="Select exam to monitor" aria-label="Select exam to monitor"
+                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3] bg-white"
+                >
+                  <option value="">Choose an exam to monitor…</option>
+                  {exams.filter((e) => e.status === "active" || e.status === "published").map((e) => (
+                    <option key={e.id} value={e.id}>{e.title} — {e.status}</option>
+                  ))}
+                </select>
               </div>
+              {monitorExamId && (() => {
+                const exam = exams.find(e => e.id === monitorExamId);
+                const isActive = exam?.status === "active";
+                const startedAt = exam?.started_at ? new Date(exam.started_at) : null;
+                const durationMs = (exam?.duration_minutes ?? 0) * 60 * 1000;
+                const now = Date.now();
+                const elapsed = startedAt ? now - startedAt.getTime() : 0;
+                const remaining = Math.max(0, durationMs - elapsed);
+                const remMin = Math.floor(remaining / 60000);
+                const remSec = Math.floor((remaining % 60000) / 1000);
+                const pctElapsed = durationMs > 0 ? Math.min(100, Math.round((elapsed / durationMs) * 100)) : 0;
+                return (
+                  <div className="flex flex-col gap-1.5 min-w-[180px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">
+                        {isActive ? "Time Remaining" : "Duration"}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-bold text-green-600">
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Live
+                      </span>
+                    </div>
+                    {isActive && startedAt ? (
+                      <>
+                        <p className={`text-2xl font-bold tabular-nums ${remMin < 5 ? "text-red-500" : remMin < 15 ? "text-amber-500" : "text-[#1e3a5f]"}`}>
+                          {String(remMin).padStart(2, "0")}:{String(remSec).padStart(2, "0")}
+                        </p>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${pctElapsed > 80 ? "bg-red-400" : pctElapsed > 60 ? "bg-amber-400" : "bg-green-400"}`}
+                            style={{ width: `${pctElapsed}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-slate-400">{pctElapsed}% elapsed</p>
+                      </>
+                    ) : (
+                      <p className="text-lg font-bold text-slate-400">{exam?.duration_minutes} min</p>
+                    )}
+                    {monitorLastUpdated && (
+                      <p className="text-xs text-slate-400">Updated {monitorLastUpdated.toLocaleTimeString()}</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
           {!monitorExamId ? (
-            <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
-              Select an active or published exam above to start monitoring.
-            </div>
-          ) : monitorSessions.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
-              No students have joined yet. Waiting…
+            <div className="bg-white rounded-2xl shadow-sm py-20 text-center">
+              <Radio className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 font-medium">Select an active exam above to start monitoring</p>
+              <p className="text-xs text-slate-300 mt-1">Updates automatically every 5 seconds</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-bold text-[#1e3a5f]">Students ({monitorSessions.length})</h2>
-                <div className="flex items-center gap-4 text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" /> Waiting: {monitorSessions.filter((s) => s.status === "waiting").length}</span>
-                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Active: {monitorSessions.filter((s) => s.status === "in_progress").length}</span>
-                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Submitted: {monitorSessions.filter((s) => s.status === "submitted").length}</span>
+            <>
+              {/* Stat cards — feature 1 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Total Joined", value: monitorSessions.length, color: "bg-slate-50 border-slate-200", text: "text-[#1e3a5f]", dot: "bg-slate-400" },
+                  { label: "Waiting", value: monitorSessions.filter(s => s.status === "waiting").length, color: "bg-amber-50 border-amber-200", text: "text-amber-700", dot: "bg-amber-400" },
+                  { label: "In Progress", value: monitorSessions.filter(s => s.status === "in_progress").length, color: "bg-green-50 border-green-200", text: "text-green-700", dot: "bg-green-500 animate-pulse" },
+                  { label: "Submitted", value: monitorSessions.filter(s => s.status === "submitted").length, color: "bg-blue-50 border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
+                ].map(stat => (
+                  <div key={stat.label} className={`rounded-xl border p-4 ${stat.color}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`h-2 w-2 rounded-full ${stat.dot}`} />
+                      <span className="text-xs font-semibold text-slate-500">{stat.label}</span>
+                    </div>
+                    <p className={`text-3xl font-bold ${stat.text}`}>{stat.value}</p>
+                    {monitorSessions.length > 0 && (
+                      <div className="mt-2 h-1 bg-white/60 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${stat.dot.replace("animate-pulse", "")}`}
+                          style={{ width: `${Math.round((stat.value / monitorSessions.length) * 100)}%` }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Search bar — feature 4 */}
+              <div className="bg-white rounded-2xl shadow-sm p-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search student by name or email…"
+                    value={monitorSearch}
+                    onChange={(e) => setMonitorSearch(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]"
+                  />
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                      <th className="text-left px-5 py-3 font-semibold">Student</th>
-                      <th className="text-left px-4 py-3 font-semibold">Status</th>
-                      <th className="text-left px-4 py-3 font-semibold">Score</th>
-                      <th className="text-left px-4 py-3 font-semibold">Submitted</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monitorSessions.map((s) => {
+
+              {/* Student cards grid — feature 1 & 6 */}
+              {monitorSessions.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
+                  No students have joined yet. Waiting…
+                </div>
+              ) : (() => {
+                const q = monitorSearch.toLowerCase();
+                const filtered = monitorSessions
+                  .filter(s => !q || s.student_name.toLowerCase().includes(q) || s.student_email.toLowerCase().includes(q))
+                  .sort((a, b) => {
+                    const order = { in_progress: 0, waiting: 1, submitted: 2 };
+                    return (order[a.status as keyof typeof order] ?? 3) - (order[b.status as keyof typeof order] ?? 3);
+                  });
+
+                if (filtered.length === 0) return (
+                  <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
+                    No students match "{monitorSearch}"
+                  </div>
+                );
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {filtered.map((s) => {
                       const pct = s.total_marks > 0 ? Math.round((s.score / s.total_marks) * 100) : null;
+                      const cheatCount = monitorCheatCounts[s.id] || 0;
+                      const cheatLevel = cheatCount >= 8 ? "high" : cheatCount >= 3 ? "medium" : "low";
+                      const initials = s.student_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+
                       return (
-                        <tr key={s.id} className="border-t border-slate-50 hover:bg-slate-50/70 transition-colors">
-                          <td className="px-5 py-3">
-                            <p className="font-semibold text-[#1e3a5f]">{s.student_name}</p>
-                            <p className="text-xs text-slate-400">{s.student_email}</p>
-                            {s.ejected_by_violation && <span className="text-xs font-bold text-red-600">⚠ Ejected</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
-                              s.status === "submitted" ? "bg-blue-100 text-blue-600"
-                              : s.status === "in_progress" ? "bg-green-100 text-green-600"
-                              : "bg-amber-100 text-amber-600"
-                            }`}>{s.status === "in_progress" ? "Active" : s.status}</span>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-[#1e3a5f]">
-                            {s.status === "submitted" && pct !== null ? (
-                              <span className={pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}>{pct}%</span>
-                            ) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-500">
-                            {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString() : "—"}
-                          </td>
-                        </tr>
+                        <div
+                          key={s.id}
+                          className={`relative bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
+                            s.ejected_by_violation
+                              ? "border-red-300 bg-red-50/30"
+                              : s.status === "in_progress"
+                              ? "border-green-200"
+                              : s.status === "waiting"
+                              ? "border-amber-200"
+                              : "border-slate-200"
+                          }`}
+                        >
+                          {/* Status stripe at top */}
+                          <div className={`h-1 w-full ${
+                            s.ejected_by_violation ? "bg-red-500"
+                            : s.status === "in_progress" ? "bg-green-400"
+                            : s.status === "waiting" ? "bg-amber-400"
+                            : "bg-blue-400"
+                          }`} />
+
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-2">
+                              {/* Avatar + name */}
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                                  s.ejected_by_violation ? "bg-red-500"
+                                  : s.status === "in_progress" ? "bg-green-500"
+                                  : s.status === "waiting" ? "bg-amber-400"
+                                  : "bg-blue-500"
+                                }`}>
+                                  {initials || "?"}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#1e3a5f] text-sm truncate">{s.student_name}</p>
+                                  <p className="text-xs text-slate-400 truncate">{s.student_email}</p>
+                                </div>
+                              </div>
+
+                              {/* Status pill */}
+                              <div className="shrink-0">
+                                {s.ejected_by_violation ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                                    <ShieldAlert className="h-3 w-3" /> Ejected
+                                  </span>
+                                ) : s.status === "in_progress" ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Active
+                                  </span>
+                                ) : s.status === "waiting" ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                    <Clock className="h-3 w-3" /> Waiting
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                    <CheckCircle2 className="h-3 w-3" /> Done
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Score / progress — feature 1 */}
+                            <div className="mt-3">
+                              {s.status === "submitted" && pct !== null ? (
+                                <>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs text-slate-500">Score</span>
+                                    <span className={`text-sm font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                                      {s.score}/{s.total_marks} ({pct}%)
+                                    </span>
+                                  </div>
+                                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${pct >= 70 ? "bg-green-400" : pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  {s.submitted_at && (
+                                    <p className="text-xs text-slate-400 mt-1.5">
+                                      Submitted at {new Date(s.submitted_at).toLocaleTimeString()}
+                                    </p>
+                                  )}
+                                </>
+                              ) : s.status === "in_progress" ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-green-300 rounded-full animate-pulse" style={{ width: "60%" }} />
+                                  </div>
+                                  <span className="text-xs text-slate-400">In exam…</span>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-400">Waiting to start</p>
+                              )}
+                            </div>
+
+                            {/* Cheat alert — feature 6 */}
+                            {cheatCount > 0 && (
+                              <div className={`mt-2 flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg ${
+                                cheatLevel === "high" ? "bg-red-50 text-red-600"
+                                : cheatLevel === "medium" ? "bg-amber-50 text-amber-600"
+                                : "bg-slate-50 text-slate-500"
+                              }`}>
+                                <ShieldAlert className="h-3 w-3 shrink-0" />
+                                {cheatCount} suspicious event{cheatCount > 1 ? "s" : ""} — {cheatLevel} risk
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </div>
+                );
+              })()}
+            </>
           )}
         </div>
       )}
