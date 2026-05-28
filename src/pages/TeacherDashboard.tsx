@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FileText, BarChart3, Settings,
@@ -68,123 +69,173 @@ const ExamActionsMenu = ({
   onClone, onPublishResults, onToggleVisibility, onDelete,
 }: ExamActionsMenuProps) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
+  // Close on outside click
   useEffect(() => {
+    if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  }, [open]);
+
+  // Close on scroll so menu doesn't float away
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    window.addEventListener("scroll", handler, true);
+    return () => window.removeEventListener("scroll", handler, true);
+  }, [open]);
+
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((v) => !v);
+  };
 
   const isPublished = (exam as any).results_published;
   const isBusy = sendingId === exam.id || stoppingId === exam.id || cloningId === exam.id;
 
-  return (
-    <div ref={ref} className="relative">
-      {/* Primary action button — context-aware */}
-      <div className="flex items-center gap-1.5">
-        {exam.status === "published" && (
-          <button
-            type="button"
-            onClick={onStart}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors shadow-sm"
-          >
-            <Play className="h-3.5 w-3.5" /> Start
-          </button>
-        )}
-        {exam.status === "active" && (
-          <button
-            type="button"
-            onClick={onStop}
-            disabled={stoppingId === exam.id}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60"
-          >
-            {stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
-            Stop
-          </button>
-        )}
-        {(exam.status === "completed" || exam.status === "active") && (
-          <button
-            type="button"
-            onClick={onPublishResults}
-            disabled={sendingId === exam.id}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60"
-          >
-            {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {sendingId === exam.id ? "Publishing…" : "Send Results"}
-          </button>
-        )}
+  const menuItem = (onClick: () => void, icon: React.ReactNode, label: string, className = "") => (
+    <button
+      type="button"
+      onClick={() => { onClick(); setOpen(false); }}
+      className={`w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors text-left ${className}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
 
-        {/* More actions dropdown */}
+  return (
+    <div className="flex items-center gap-2">
+      {/* Context-aware primary button */}
+      {exam.status === "published" && (
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          disabled={isBusy}
-          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors disabled:opacity-40"
-          title="More actions"
-          aria-label="More actions"
+          onClick={onStart}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors shadow-sm whitespace-nowrap"
         >
-          <MoreVertical className="h-4 w-4" />
+          <Play className="h-3.5 w-3.5" /> Start
         </button>
-      </div>
+      )}
+      {exam.status === "active" && (
+        <button
+          type="button"
+          onClick={onStop}
+          disabled={stoppingId === exam.id}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60 whitespace-nowrap"
+        >
+          {stoppingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+          Stop
+        </button>
+      )}
+      {(exam.status === "completed" || exam.status === "active") && (
+        <button
+          type="button"
+          onClick={onPublishResults}
+          disabled={sendingId === exam.id}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a8fe3] hover:bg-[#1a7fd4] text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-60 whitespace-nowrap"
+        >
+          {sendingId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          {sendingId === exam.id ? "Sending…" : "Send Results"}
+        </button>
+      )}
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-lg border border-slate-100 z-50 py-1 text-sm">
-          {/* Edit group */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Edit</div>
-          <button type="button" onClick={() => { onEditQuestions(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
-            <Pencil className="h-3.5 w-3.5 text-blue-500" /> Edit Questions
-          </button>
-          <button type="button" onClick={() => { onQuickEdit(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
-            <Settings className="h-3.5 w-3.5 text-slate-400" /> Quick Edit (Title / Duration)
-          </button>
+      {/* ⋮ trigger */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={handleToggle}
+        disabled={isBusy}
+        className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${open ? "bg-slate-200 text-slate-700" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
+        title="More actions"
+        aria-label="More actions"
+        aria-expanded={open}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
 
-          <div className="border-t border-slate-100 my-1" />
+      {/* Portal dropdown — renders at body level, never clipped */}
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+          className="w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-sm"
+        >
+          {/* Edit */}
+          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Edit</p>
+          {menuItem(onEditQuestions, <Pencil className="h-3.5 w-3.5 text-blue-500 shrink-0" />, "Edit Questions")}
+          {menuItem(onQuickEdit, <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Quick Edit (Title / Duration)")}
 
-          {/* Share group */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Share</div>
-          <button type="button" onClick={() => { onCopyLink(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors">
-            <Copy className="h-3.5 w-3.5 text-slate-400" /> Copy Exam Link
-          </button>
-          <button type="button" onClick={() => { onClone(); setOpen(false); }}
+          <div className="my-1 border-t border-slate-100" />
+
+          {/* Share */}
+          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Share</p>
+          {menuItem(onCopyLink, <Copy className="h-3.5 w-3.5 text-slate-400 shrink-0" />, "Copy Exam Link")}
+          <button
+            type="button"
+            onClick={() => { onClone(); setOpen(false); }}
             disabled={cloningId === exam.id}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50">
-            {cloningId === exam.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" /> : <Copy className="h-3.5 w-3.5 text-indigo-500" />}
-            Duplicate Exam
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors disabled:opacity-50"
+          >
+            {cloningId === exam.id
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500 shrink-0" />
+              : <Copy className="h-3.5 w-3.5 text-indigo-500 shrink-0" />}
+            <span>Duplicate Exam</span>
           </button>
 
-          <div className="border-t border-slate-100 my-1" />
+          <div className="my-1 border-t border-slate-100" />
 
-          {/* Results group */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Results</div>
+          {/* Results */}
+          <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Results</p>
           {(exam.status === "draft" || exam.status === "published") && (
-            <button type="button" onClick={() => { onPublishResults(); setOpen(false); }}
+            <button
+              type="button"
+              onClick={() => { onPublishResults(); setOpen(false); }}
               disabled={sendingId === exam.id}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50">
-              <Send className="h-3.5 w-3.5 text-[#1a8fe3]" /> Send Results to Students
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-sm transition-colors disabled:opacity-50"
+            >
+              <Send className="h-3.5 w-3.5 text-[#1a8fe3] shrink-0" />
+              <span>Send Results to Students</span>
             </button>
           )}
-          <button type="button" onClick={() => { onToggleVisibility(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => { onToggleVisibility(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-sm transition-colors"
+          >
             {isPublished
-              ? <><EyeOff className="h-3.5 w-3.5 text-amber-500" /><span className="text-amber-600 font-medium">Hide Results from Students</span></>
-              : <><Eye className="h-3.5 w-3.5 text-green-500" /><span className="text-green-700 font-medium">Show Results to Students</span></>
+              ? <><EyeOff className="h-3.5 w-3.5 text-amber-500 shrink-0" /><span className="text-amber-600 font-medium">Hide Results from Students</span></>
+              : <><Eye className="h-3.5 w-3.5 text-green-500 shrink-0" /><span className="text-green-700 font-medium">Show Results to Students</span></>
             }
           </button>
 
-          <div className="border-t border-slate-100 my-1" />
+          <div className="my-1 border-t border-slate-100" />
 
-          {/* Danger zone */}
-          <button type="button" onClick={() => { onDelete(); setOpen(false); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-500 transition-colors">
-            <Trash2 className="h-3.5 w-3.5" /> Delete Exam
+          {/* Danger */}
+          <button
+            type="button"
+            onClick={() => { onDelete(); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-red-50 text-red-500 text-sm transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5 shrink-0" />
+            <span>Delete Exam</span>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
