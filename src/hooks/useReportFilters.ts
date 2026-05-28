@@ -22,7 +22,6 @@ export interface ReportRow {
   suspiciousScore: "Low" | "Medium" | "High";
   ejectedByViolation: boolean;
   resultPublishedAt: string | null;
-  resultEmailSentAt: string | null;
 }
 
 export function useReportFilters(reports: ReportRow[]) {
@@ -50,11 +49,11 @@ export function useReportFilters(reports: ReportRow[]) {
       rows = rows.filter((r) => r.examId === examFilter);
     }
 
-    // Email filter
+    // Result sent filter (based on result_published_at, not email)
     if (emailFilter === "sent") {
-      rows = rows.filter((r) => !!r.resultEmailSentAt);
+      rows = rows.filter((r) => !!r.resultPublishedAt);
     } else if (emailFilter === "not_sent") {
-      rows = rows.filter((r) => r.status === "submitted" && r.resultPublishedAt && !r.resultEmailSentAt);
+      rows = rows.filter((r) => r.status === "submitted" && !r.resultPublishedAt);
     }
 
     if (search.trim()) {
@@ -101,11 +100,8 @@ export function useReportFilters(reports: ReportRow[]) {
       Incorrect: r.incorrect,
       Unanswered: r.unanswered,
       Risk: r.suspiciousScore,
-      "Result Published": r.resultPublishedAt
+      "Result Sent": r.resultPublishedAt
         ? new Date(r.resultPublishedAt).toLocaleString()
-        : "Not Published",
-      "Email Sent": r.resultEmailSentAt
-        ? new Date(r.resultEmailSentAt).toLocaleString()
         : "Not Sent",
       "Submitted At": r.submittedAt
         ? new Date(r.submittedAt).toLocaleString()
