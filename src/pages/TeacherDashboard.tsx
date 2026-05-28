@@ -302,6 +302,7 @@ const TeacherDashboard = () => {
   const [monitorLastUpdated, setMonitorLastUpdated] = useState<Date | null>(null);
   const [monitorSearch, setMonitorSearch] = useState("");
   const [monitorCheatCounts, setMonitorCheatCounts] = useState<Record<string, number>>({});
+  const [monitorFilter, setMonitorFilter] = useState<"all" | "waiting" | "in_progress" | "submitted">("all");
   const [, setTimerTick] = useState(0); // forces re-render every second for countdown
   // Exams search
   const [examSearch, setExamSearch] = useState("");
@@ -1061,7 +1062,7 @@ const TeacherDashboard = () => {
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Select Exam</label>
                 <select
                   value={monitorExamId}
-                  onChange={(e) => { setMonitorExamId(e.target.value); setMonitorLastUpdated(null); setMonitorSearch(""); }}
+                  onChange={(e) => { setMonitorExamId(e.target.value); setMonitorLastUpdated(null); setMonitorSearch(""); setMonitorFilter("all"); }}
                   title="Select exam to monitor" aria-label="Select exam to monitor"
                   className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3] bg-white"
                 >
@@ -1125,45 +1126,68 @@ const TeacherDashboard = () => {
             </div>
           ) : (
             <>
-              {/* Stat cards — feature 1 */}
+              {/* Clickable stat cards — clicking filters the list */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: "Total Joined", value: monitorSessions.length, color: "bg-slate-50 border-slate-200", text: "text-[#1e3a5f]", dot: "bg-slate-400" },
-                  { label: "Waiting", value: monitorSessions.filter(s => s.status === "waiting").length, color: "bg-amber-50 border-amber-200", text: "text-amber-700", dot: "bg-amber-400" },
-                  { label: "In Progress", value: monitorSessions.filter(s => s.status === "in_progress").length, color: "bg-green-50 border-green-200", text: "text-green-700", dot: "bg-green-500 animate-pulse" },
-                  { label: "Submitted", value: monitorSessions.filter(s => s.status === "submitted").length, color: "bg-blue-50 border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
-                ].map(stat => (
-                  <div key={stat.label} className={`rounded-xl border p-4 ${stat.color}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`h-2 w-2 rounded-full ${stat.dot}`} />
-                      <span className="text-xs font-semibold text-slate-500">{stat.label}</span>
-                    </div>
-                    <p className={`text-3xl font-bold ${stat.text}`}>{stat.value}</p>
-                    {monitorSessions.length > 0 && (
-                      <div className="mt-2 h-1 bg-white/60 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${stat.dot.replace("animate-pulse", "")}`}
-                          style={{ width: `${Math.round((stat.value / monitorSessions.length) * 100)}%` }} />
+                {([
+                  { key: "all",         label: "Total Joined", value: monitorSessions.length,                                          color: "bg-slate-50 border-slate-200",  activeColor: "bg-slate-200 border-slate-400",  text: "text-[#1e3a5f]", dot: "bg-slate-400" },
+                  { key: "waiting",     label: "Waiting",      value: monitorSessions.filter(s => s.status === "waiting").length,      color: "bg-amber-50 border-amber-200",  activeColor: "bg-amber-100 border-amber-400",  text: "text-amber-700", dot: "bg-amber-400" },
+                  { key: "in_progress", label: "In Progress",  value: monitorSessions.filter(s => s.status === "in_progress").length,  color: "bg-green-50 border-green-200",  activeColor: "bg-green-100 border-green-500",  text: "text-green-700", dot: "bg-green-500" },
+                  { key: "submitted",   label: "Submitted",    value: monitorSessions.filter(s => s.status === "submitted").length,    color: "bg-blue-50 border-blue-200",    activeColor: "bg-blue-100 border-blue-500",    text: "text-blue-700",  dot: "bg-blue-500" },
+                ] as const).map(stat => {
+                  const isActive = monitorFilter === stat.key;
+                  return (
+                    <button
+                      key={stat.key}
+                      type="button"
+                      onClick={() => setMonitorFilter(isActive ? "all" : stat.key)}
+                      className={`rounded-xl border p-4 text-left transition-all cursor-pointer hover:shadow-md ${isActive ? stat.activeColor + " ring-2 ring-offset-1 ring-current" : stat.color}`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${stat.dot} ${stat.key === "in_progress" ? "animate-pulse" : ""}`} />
+                          <span className="text-xs font-semibold text-slate-500">{stat.label}</span>
+                        </div>
+                        {isActive && (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Filtered</span>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <p className={`text-3xl font-bold ${stat.text}`}>{stat.value}</p>
+                      {monitorSessions.length > 0 && (
+                        <div className="mt-2 h-1 bg-white/60 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${stat.dot}`}
+                            style={{ width: `${stat.key === "all" ? 100 : Math.round((stat.value / monitorSessions.length) * 100)}%` }} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Search bar — feature 4 */}
-              <div className="bg-white rounded-2xl shadow-sm p-3">
-                <div className="relative">
+              {/* Search + active filter indicator */}
+              <div className="bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search student by name or email…"
+                    placeholder="Search by name or email…"
                     value={monitorSearch}
                     onChange={(e) => setMonitorSearch(e.target.value)}
                     className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#1a8fe3]"
                   />
                 </div>
+                {monitorFilter !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => setMonitorFilter("all")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors whitespace-nowrap"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Clear filter
+                  </button>
+                )}
               </div>
 
-              {/* Student cards grid — feature 1 & 6 */}
+              {/* Student list */}
               {monitorSessions.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-sm py-16 text-center text-slate-400 text-sm">
                   No students have joined yet. Waiting…
@@ -1171,7 +1195,11 @@ const TeacherDashboard = () => {
               ) : (() => {
                 const q = monitorSearch.toLowerCase();
                 const filtered = monitorSessions
-                  .filter(s => !q || s.student_name.toLowerCase().includes(q) || s.student_email.toLowerCase().includes(q))
+                  .filter(s => {
+                    const matchSearch = !q || s.student_name.toLowerCase().includes(q) || s.student_email.toLowerCase().includes(q);
+                    const matchFilter = monitorFilter === "all" || s.status === monitorFilter;
+                    return matchSearch && matchFilter;
+                  })
                   .sort((a, b) => {
                     const order = { in_progress: 0, waiting: 1, submitted: 2 };
                     return (order[a.status as keyof typeof order] ?? 3) - (order[b.status as keyof typeof order] ?? 3);
@@ -1179,128 +1207,118 @@ const TeacherDashboard = () => {
 
                 if (filtered.length === 0) return (
                   <div className="bg-white rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
-                    No students match "{monitorSearch}"
+                    No students match your filter{monitorSearch ? ` "${monitorSearch}"` : ""}.
+                    <button type="button" onClick={() => { setMonitorSearch(""); setMonitorFilter("all"); }}
+                      className="ml-2 text-[#1a8fe3] hover:underline font-medium">Clear</button>
                   </div>
                 );
 
                 return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {filtered.map((s) => {
-                      const pct = s.total_marks > 0 ? Math.round((s.score / s.total_marks) * 100) : null;
-                      const cheatCount = monitorCheatCounts[s.id] || 0;
-                      const cheatLevel = cheatCount >= 8 ? "high" : cheatCount >= 3 ? "medium" : "low";
-                      const initials = s.student_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    {/* List header */}
+                    <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-[#1e3a5f]">
+                        {filtered.length} student{filtered.length !== 1 ? "s" : ""}
+                        {monitorFilter !== "all" && (
+                          <span className="ml-1.5 text-xs font-normal text-slate-400">
+                            — filtered by <span className="font-semibold capitalize">{monitorFilter.replace("_", " ")}</span>
+                          </span>
+                        )}
+                      </p>
+                      {monitorLastUpdated && (
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          Updated {monitorLastUpdated.toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
 
-                      return (
-                        <div
-                          key={s.id}
-                          className={`relative bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
-                            s.ejected_by_violation
-                              ? "border-red-300 bg-red-50/30"
-                              : s.status === "in_progress"
-                              ? "border-green-200"
-                              : s.status === "waiting"
-                              ? "border-amber-200"
-                              : "border-slate-200"
-                          }`}
-                        >
-                          {/* Status stripe at top */}
-                          <div className={`h-1 w-full ${
-                            s.ejected_by_violation ? "bg-red-500"
-                            : s.status === "in_progress" ? "bg-green-400"
-                            : s.status === "waiting" ? "bg-amber-400"
-                            : "bg-blue-400"
-                          }`} />
+                    {/* Table */}
+                    <div className="divide-y divide-slate-50">
+                      {filtered.map((s, idx) => {
+                        const pct = s.total_marks > 0 ? Math.round((s.score / s.total_marks) * 100) : null;
+                        const cheatCount = monitorCheatCounts[s.id] || 0;
+                        const cheatLevel = cheatCount >= 8 ? "high" : cheatCount >= 3 ? "medium" : "low";
+                        const initials = s.student_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
-                          <div className="p-4">
-                            <div className="flex items-start justify-between gap-2">
-                              {/* Avatar + name */}
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
-                                  s.ejected_by_violation ? "bg-red-500"
-                                  : s.status === "in_progress" ? "bg-green-500"
-                                  : s.status === "waiting" ? "bg-amber-400"
-                                  : "bg-blue-500"
-                                }`}>
-                                  {initials || "?"}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-[#1e3a5f] text-sm truncate">{s.student_name}</p>
-                                  <p className="text-xs text-slate-400 truncate">{s.student_email}</p>
-                                </div>
-                              </div>
+                        return (
+                          <div
+                            key={s.id}
+                            className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/70 transition-colors ${
+                              s.ejected_by_violation ? "bg-red-50/40" : ""
+                            }`}
+                          >
+                            {/* Rank / index */}
+                            <span className="text-xs text-slate-300 font-mono w-5 shrink-0 text-right">{idx + 1}</span>
 
-                              {/* Status pill */}
-                              <div className="shrink-0">
-                                {s.ejected_by_violation ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                                    <ShieldAlert className="h-3 w-3" /> Ejected
-                                  </span>
-                                ) : s.status === "in_progress" ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Active
-                                  </span>
-                                ) : s.status === "waiting" ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                    <Clock className="h-3 w-3" /> Waiting
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                                    <CheckCircle2 className="h-3 w-3" /> Done
-                                  </span>
-                                )}
-                              </div>
+                            {/* Avatar */}
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                              s.ejected_by_violation ? "bg-red-500"
+                              : s.status === "in_progress" ? "bg-green-500"
+                              : s.status === "waiting" ? "bg-amber-400"
+                              : "bg-blue-500"
+                            }`}>
+                              {initials || "?"}
                             </div>
 
-                            {/* Score / progress — feature 1 */}
-                            <div className="mt-3">
-                              {s.status === "submitted" && pct !== null ? (
-                                <>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs text-slate-500">Score</span>
-                                    <span className={`text-sm font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>
-                                      {s.score}/{s.total_marks} ({pct}%)
-                                    </span>
-                                  </div>
-                                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${pct >= 70 ? "bg-green-400" : pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
-                                      style={{ width: `${pct}%` }}
-                                    />
-                                  </div>
-                                  {s.submitted_at && (
-                                    <p className="text-xs text-slate-400 mt-1.5">
-                                      Submitted at {new Date(s.submitted_at).toLocaleTimeString()}
-                                    </p>
-                                  )}
-                                </>
-                              ) : s.status === "in_progress" ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-300 rounded-full animate-pulse" style={{ width: "60%" }} />
-                                  </div>
-                                  <span className="text-xs text-slate-400">In exam…</span>
-                                </div>
-                              ) : (
-                                <p className="text-xs text-slate-400">Waiting to start</p>
-                              )}
+                            {/* Name + email */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-[#1e3a5f] text-sm truncate">{s.student_name}</p>
+                              <p className="text-xs text-slate-400 truncate">{s.student_email}</p>
                             </div>
 
-                            {/* Cheat alert — feature 6 */}
-                            {cheatCount > 0 && (
-                              <div className={`mt-2 flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg ${
+                            {/* Score bar (submitted only) */}
+                            {s.status === "submitted" && pct !== null ? (
+                              <div className="w-28 shrink-0">
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <span className="text-xs text-slate-400">{s.score}/{s.total_marks}</span>
+                                  <span className={`text-xs font-bold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>{pct}%</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${pct >= 70 ? "bg-green-400" : pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
+                                    style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-28 shrink-0" />
+                            )}
+
+                            {/* Cheat badge */}
+                            {cheatCount > 0 ? (
+                              <span className={`shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                                 cheatLevel === "high" ? "bg-red-50 text-red-600"
                                 : cheatLevel === "medium" ? "bg-amber-50 text-amber-600"
                                 : "bg-slate-50 text-slate-500"
                               }`}>
-                                <ShieldAlert className="h-3 w-3 shrink-0" />
-                                {cheatCount} suspicious event{cheatCount > 1 ? "s" : ""} — {cheatLevel} risk
-                              </div>
-                            )}
+                                <ShieldAlert className="h-3 w-3 shrink-0" /> {cheatCount}
+                              </span>
+                            ) : <span className="w-12 shrink-0" />}
+
+                            {/* Status pill */}
+                            <div className="shrink-0">
+                              {s.ejected_by_violation ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-600">
+                                  <ShieldAlert className="h-3 w-3" /> Ejected
+                                </span>
+                              ) : s.status === "in_progress" ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Active
+                                </span>
+                              ) : s.status === "waiting" ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                  <Clock className="h-3 w-3" /> Waiting
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Done"}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
