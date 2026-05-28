@@ -41,7 +41,7 @@ export const DashboardLayout = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a8fe3] via-[#1a7fd4] to-[#1565c0] p-3 sm:p-4 md:p-6">
-      <div className="max-w-[1400px] mx-auto rounded-2xl shadow-2xl overflow-hidden bg-white/10 backdrop-blur-sm flex h-[calc(100vh-48px)] min-h-[600px]">
+      <div className="max-w-[1400px] mx-auto rounded-2xl shadow-2xl flex h-[calc(100vh-48px)] min-h-[600px] bg-white/10">
         {/* Sidebar */}
         <aside className="hidden md:flex w-56 lg:w-64 flex-col bg-white rounded-l-2xl shadow-lg">
           {/* Logo */}
@@ -89,7 +89,7 @@ export const DashboardLayout = ({
         </aside>
 
         {/* Main */}
-        <div className="flex-1 flex flex-col bg-[#f0f4f8] rounded-r-2xl overflow-hidden">
+        <div className="flex-1 flex flex-col bg-[#f0f4f8] rounded-r-2xl min-w-0">
           {/* Top header */}
           <header className="bg-white px-5 py-3.5 flex items-center justify-between border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
@@ -144,9 +144,9 @@ export const DashboardLayout = ({
           <div className="flex-1 overflow-y-auto p-4 sm:p-5">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
             >
               {children}
             </motion.div>
