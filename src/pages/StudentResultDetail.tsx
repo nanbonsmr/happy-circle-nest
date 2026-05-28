@@ -201,7 +201,7 @@ const StudentResultDetail = () => {
             <h1 className="text-xl font-bold text-[#0f172a]">{examTitle}</h1>
             <p className="text-sm text-slate-500">{examSubject}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <div className="text-center">
               <div className={`text-3xl font-extrabold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>{pct}%</div>
               <p className="text-xs text-slate-500 mt-1">Score</p>
@@ -219,49 +219,106 @@ const StudentResultDetail = () => {
             <div className="text-center">
               <div className="text-3xl font-extrabold text-red-500">{incorrect}</div>
               <p className="text-xs text-slate-500 mt-1">Incorrect</p>
-              {unanswered > 0 && <p className="text-xs text-slate-400">{unanswered} skipped</p>}
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-extrabold text-slate-400">{unanswered}</div>
+              <p className="text-xs text-slate-500 mt-1">Unanswered</p>
             </div>
           </div>
         </div>
 
         {/* Answer breakdown */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-bold text-[#0f172a]">Question Breakdown</h2>
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-400 inline-block" /> Correct</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-400 inline-block" /> Incorrect</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-slate-300 inline-block" /> Unanswered</span>
+            </div>
           </div>
           <div className="divide-y divide-slate-50">
-            {answers.map((a, i) => (
-              <div key={a.questionId} className="px-5 py-4">
-                <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${a.isCorrect === true ? "bg-green-100" : a.isCorrect === false ? "bg-red-100" : "bg-slate-100"}`}>
-                    {a.isCorrect === true ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> :
-                     a.isCorrect === false ? <XCircle className="h-3.5 w-3.5 text-red-500" /> :
-                     <Minus className="h-3.5 w-3.5 text-slate-400" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-[#0f172a]">Q{i + 1}. {a.questionText}</p>
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-                      {["A", "B", "C", "D"].map(opt => {
-                        const optText = opt === "A" ? a.optionA : opt === "B" ? a.optionB : opt === "C" ? a.optionC : a.optionD;
-                        const isSelected = a.selectedAnswer === opt;
-                        const isCorrectOpt = a.correctAnswer === opt;
-                        let bg = "bg-slate-50 text-slate-600";
-                        if (isCorrectOpt) bg = "bg-green-50 text-green-700 border-green-200";
-                        if (isSelected && !isCorrectOpt) bg = "bg-red-50 text-red-600 border-red-200";
-                        return (
-                          <div key={opt} className={`px-3 py-2 rounded-lg border ${bg} flex items-center gap-2`}>
-                            <span className="font-bold">{opt}.</span> {optText}
-                            {isSelected && <span className="ml-auto text-[10px] font-medium">(Your answer)</span>}
-                            {isCorrectOpt && <span className="ml-auto text-[10px] font-medium">✓ Correct</span>}
-                          </div>
-                        );
-                      })}
+            {answers.map((a, i) => {
+              const isUnanswered = a.selectedAnswer === null || a.selectedAnswer === undefined || a.selectedAnswer === "";
+              return (
+                <div key={a.questionId} className={`px-5 py-4 ${isUnanswered ? "bg-slate-50/60" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    {/* Status icon */}
+                    <div className={`mt-0.5 h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${
+                      a.isCorrect === true ? "bg-green-100"
+                      : isUnanswered ? "bg-slate-100"
+                      : "bg-red-100"
+                    }`}>
+                      {a.isCorrect === true
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        : isUnanswered
+                        ? <Minus className="h-3.5 w-3.5 text-slate-400" />
+                        : <XCircle className="h-3.5 w-3.5 text-red-500" />}
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{a.marks} marks</p>
+
+                    <div className="flex-1">
+                      {/* Question header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium text-[#0f172a]">Q{i + 1}. {a.questionText}</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isUnanswered ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                              <Minus className="h-3 w-3" /> Unanswered
+                            </span>
+                          ) : a.isCorrect === true ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                              <CheckCircle2 className="h-3 w-3" /> Correct
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+                              <XCircle className="h-3 w-3" /> Incorrect
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400 font-medium">{a.marks} mark{a.marks !== 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+
+                      {/* Unanswered notice */}
+                      {isUnanswered && (
+                        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-500 font-medium">
+                          <Minus className="h-3.5 w-3.5 shrink-0" />
+                          You did not answer this question. The correct answer is shown below.
+                        </div>
+                      )}
+
+                      {/* Options */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                        {["A", "B", "C", "D"].map(opt => {
+                          const optText = opt === "A" ? a.optionA : opt === "B" ? a.optionB : opt === "C" ? a.optionC : a.optionD;
+                          const isSelected = !isUnanswered && a.selectedAnswer === opt;
+                          const isCorrectOpt = a.correctAnswer === opt;
+
+                          let bg = "bg-white text-slate-600 border-slate-200";
+                          if (isCorrectOpt && isSelected) bg = "bg-green-50 text-green-700 border-green-300";
+                          else if (isCorrectOpt) bg = "bg-green-50 text-green-700 border-green-200";
+                          else if (isSelected) bg = "bg-red-50 text-red-600 border-red-200";
+
+                          return (
+                            <div key={opt} className={`px-3 py-2 rounded-lg border ${bg} flex items-center gap-2`}>
+                              <span className="font-bold shrink-0">{opt}.</span>
+                              <span className="flex-1">{optText}</span>
+                              {isSelected && !isCorrectOpt && (
+                                <span className="ml-auto text-[10px] font-semibold text-red-500 shrink-0">Your answer</span>
+                              )}
+                              {isCorrectOpt && (
+                                <span className="ml-auto text-[10px] font-semibold text-green-600 shrink-0">
+                                  {isSelected ? "✓ Correct" : "✓ Answer"}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
